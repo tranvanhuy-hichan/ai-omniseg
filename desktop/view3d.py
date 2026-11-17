@@ -1,0 +1,185 @@
+"""VTK MRI anatomy and segmentation surfaces embedded in a native Qt workspace."""
+import numpy as np
+from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QSlider, QComboBox, QGroupBox
+import vtkmodules.qt
+vtkmodules.qt.PyQtImpl = 'PySide6'
+from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+import vtkmodules.vtkRenderingOpenGL2
+import vtkmodules.vtkRenderingVolumeOpenGL2
+import vtkmodules.vtkInteractionStyle
+from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper, vtkRenderer
+from vtkmodules.vtkInteractionStyle import vtkInteractorStyleTrackballCamera
+from vtkmodules.vtkRenderingAnnotation import vtkAnnotatedCubeActor
+from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
+from .surfaces import build_surfaces
+from .anatomy import create_anatomy, set_anatomy_opacity
+from .volume import COLORS
+
+NAMES = {1:'Phù nề',2:'U không tăng tương phản',3:'U tăng tương phản'}
+
+
+class SurfaceWorker(QThread):
+    ready = Signal(object)
+    failed = Signal(str)
+    def __init__(self,mask,affine):
+        super().__init__();self.mask,self.affine=mask,affine
+    def run(self):
+        try:self.ready.emit(build_surfaces(self.mask,self.affine))
+        except Exception as error:self.failed.emit(str(error))
+
+
+class SurfaceViewer(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.actors={};self.anatomy_actor=None;self.anatomy_key=None
+        self.worker=None;self.pending=None;self.generation=0;self.initialized=False
+        layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
+        self.vtk=QVTKRenderWindowInteractor(self);self.vtk.setMinimumSize(200,200)
+        self.renderer=vtkRenderer();self.renderer.SetBackground(.055,.09,.14)
+        window=self.vtk.GetRenderWindow();window.AddRenderer(self.renderer)
+        window.SetMultiSamples(0);window.SetAlphaBitPlanes(1)
+        self.renderer.SetUseDepthPeeling(True);self.renderer.SetUseDepthPeelingForVolumes(True)
+        # Keep peel count low: it is the render cost multiplier for every frame while
+        # dragging the camera, and 100 peels made interaction noticeably laggy with
+        # both the anatomy volume and mask surfaces visible. 8 is still enough depth
+        # ordering for a handful of semi-transparent surfaces plus the volume.
+        self.renderer.SetMaximumNumberOfPeels(8);self.renderer.SetOcclusionRatio(.2)
+        interactor=window.GetInteractor()
+        interactor.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
+        interactor.SetDesiredUpdateRate(30);interactor.SetStillUpdateRate(0.5)
+        layout.addWidget(self.vtk,1)
+        self.marker=None
+        # Settings live in the existing inspector, leaving the image area free of headers.
+        self.settings=QGroupBox('Hiển thị 3D');controls=QVBoxLayout(self.settings);controls.setSpacing(10)
+
+        def muted(text):
+            widget=QLabel(text);widget.setObjectName('muted');widget.setWordWrap(True);return widget
+
+        def switch_row(text):
+            row=QHBoxLayout();row.setContentsMargins(0,0,0,0)
+            text_label=QLabel(text);text_label.setStyleSheet('font-weight: 600;')
+            row.addWidget(text_label);row.addStretch()
+            toggle=QCheckBox();row.addWidget(toggle)
+            controls.addLayout(row)
+            return toggle,text_label
+
+        self.show_anatomy,_=switch_row('Hiện toàn bộ MRI não');self.show_anatomy.setChecked(True)
+        self.show_anatomy.setToolTip('Dựng thể tích từ cường độ MRI đang chọn. Không phải mask phân đoạn não.')
+        self.show_anatomy.toggled.connect(self.update_appearance)
+        controls.addWidget(muted('Độ đục MRI'))
+        self.brain_opacity=QSlider(Qt.Orientation.Horizontal);self.brain_opacity.setRange(1,100);self.brain_opacity.setValue(25)
+        self.brain_opacity.valueChanged.connect(self.update_appearance);controls.addWidget(self.brain_opacity)
+        controls.addWidget(muted('CÁC VÙNG TRONG MASK'))
+        self.toggles={}
+        for label,name in NAMES.items():
+            toggle,text_label=switch_row(name);toggle.setChecked(True);toggle.setEnabled(False)
+            color=COLORS[label];text_label.setStyleSheet(f'color: rgb({color[0]},{color[1]},{color[2]}); font-weight: 600;')
+            toggle.toggled.connect(self.update_appearance);self.toggles[label]=toggle
+        controls.addWidget(muted('Độ đục vùng mask'))
+        self.opacity=QSlider(Qt.Orientation.Horizontal);self.opacity.setRange(10,100);self.opacity.setValue(85)
+        self.opacity.valueChanged.connect(self.update_appearance);controls.addWidget(self.opacity)
+        self.direction=QComboBox();self.direction.addItems(['Góc nhìn tự do','Trước · A','Sau · P','Trái · L','Phải · R','Trên · S'])
+        self.direction.currentIndexChanged.connect(self.set_direction);controls.addWidget(self.direction)
+        reset=QPushButton('Đặt lại góc nhìn');reset.clicked.connect(self.reset_camera);controls.addWidget(reset)
+        self.message=muted('Mở MRI hoặc nạp mask để xem 3D.');controls.addWidget(self.message)
+        self.setToolTip('Chuột trái: xoay · Chuột giữa: di chuyển · Cuộn: zoom · Esc: về lát cắt')
+
+    def activate(self):
+        if not self.initialized:
+            self.vtk.Initialize()
+            cube=vtkAnnotatedCubeActor()
+            for method,text in [('SetXPlusFaceText','R'),('SetXMinusFaceText','L'),('SetYPlusFaceText','A'),('SetYMinusFaceText','P'),('SetZPlusFaceText','S'),('SetZMinusFaceText','I')]:getattr(cube,method)(text)
+            cube.GetCubeProperty().SetColor(.25,.4,.48);cube.GetTextEdgesProperty().SetColor(.9,.95,1)
+            self.marker=vtkOrientationMarkerWidget();self.marker.SetOrientationMarker(cube)
+            self.marker.SetInteractor(self.vtk.GetRenderWindow().GetInteractor());self.marker.SetViewport(0,0,.14,.18)
+            self.marker.SetEnabled(True);self.marker.InteractiveOff();self.initialized=True
+        self.start_pending();self.reset_camera();self.render()
+
+    def render(self):
+        if self.initialized:self.vtk.GetRenderWindow().Render()
+
+    def set_anatomy(self,volume,channel=0):
+        key=(id(volume),channel) if volume is not None else None
+        if key==self.anatomy_key:return
+        if self.anatomy_actor is not None:self.renderer.RemoveVolume(self.anatomy_actor)
+        self.anatomy_actor=None;self.anatomy_key=key
+        self.show_anatomy.setEnabled(volume is not None)
+        if volume is not None:
+            self.anatomy_actor=create_anatomy(volume,channel)
+            self.renderer.AddVolume(self.anatomy_actor)
+        self.update_appearance();self.reset_camera()
+
+    def set_input(self,mask,affine=None,source=''):
+        self.generation+=1
+        for actor in self.actors.values():self.renderer.RemoveActor(actor)
+        self.actors={};self.pending=None
+        for check in self.toggles.values():check.setEnabled(False)
+        if mask is None:
+            self.message.setText('Đang xem MRI. Nạp mask để thêm các vùng tổn thương.')
+        else:
+            self.settings.setToolTip(source)
+            self.pending=(self.generation,mask,np.array(affine,copy=True));self.message.setText('Sẵn sàng dựng vùng mask…')
+        self.render()
+        if self.initialized and self.isVisible():self.start_pending()
+
+    def start_pending(self):
+        if self.worker is not None or self.pending is None:return
+        generation,mask,affine=self.pending;self.pending=None
+        self.worker=SurfaceWorker(mask,affine);self.message.setText('Đang dựng bề mặt mask…')
+        self.worker.ready.connect(lambda meshes:self.accept_meshes(generation,meshes))
+        self.worker.failed.connect(lambda text:self.accept_error(generation,text))
+        self.worker.finished.connect(self.worker_finished);self.worker.start()
+
+    def worker_finished(self):
+        old=self.worker;self.worker=None;old.deleteLater()
+        if self.isVisible():self.start_pending()
+
+    def accept_error(self,generation,text):
+        if generation==self.generation:self.message.setText('Không dựng được mask: '+text)
+
+    def accept_meshes(self,generation,meshes):
+        if generation!=self.generation:return
+        for actor in self.actors.values():self.renderer.RemoveActor(actor)
+        self.actors={}
+        for label,mesh in meshes.items():
+            mapper=vtkPolyDataMapper();mapper.SetInputData(mesh);mapper.ScalarVisibilityOff()
+            actor=vtkActor();actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(*(COLORS[label].astype(float)/255))
+            actor.GetProperty().SetInterpolationToPhong();actor.GetProperty().SetSpecular(.2);actor.GetProperty().SetSpecularPower(25)
+            self.renderer.AddActor(actor);self.actors[label]=actor
+        for label,check in self.toggles.items():check.setEnabled(label in self.actors)
+        self.update_appearance();self.reset_camera()
+        self.message.setText('Kéo trái: xoay · Cuộn: zoom. Nguồn mask ở bảng thông tin bên dưới.' if meshes else 'Mask không có vùng 1–3; vẫn có thể xem MRI.')
+
+    def update_appearance(self,*args):
+        for label,actor in self.actors.items():
+            actor.SetVisibility(self.toggles[label].isChecked());actor.GetProperty().SetOpacity(self.opacity.value()/100)
+        if self.anatomy_actor:
+            self.anatomy_actor.SetVisibility(self.show_anatomy.isChecked())
+            set_anatomy_opacity(self.anatomy_actor,self.brain_opacity.value()/100)
+        self.render()
+
+    def reset_camera(self):
+        if not self.actors and self.anatomy_actor is None:return
+        bounds=self.renderer.ComputeVisiblePropBounds()
+        if bounds[0]>bounds[1]:return
+        center=np.array([(bounds[i]+bounds[i+1])/2 for i in (0,2,4)])
+        extent=max(bounds[i+1]-bounds[i] for i in (0,2,4))
+        camera=self.renderer.GetActiveCamera();camera.SetFocalPoint(*center)
+        camera.SetPosition(*(center+np.array([1.,2.,1.])*max(extent,1)));camera.SetViewUp(0,0,1)
+        self.renderer.ResetCamera();self.renderer.ResetCameraClippingRange()
+        self.direction.blockSignals(True);self.direction.setCurrentIndex(0);self.direction.blockSignals(False);self.render()
+
+    def set_direction(self,index):
+        if not self.actors and self.anatomy_actor is None:return
+        if index==0:self.reset_camera();return
+        camera=self.renderer.GetActiveCamera();center=np.array(camera.GetFocalPoint());distance=camera.GetDistance()
+        vector={1:(0,1,0),2:(0,-1,0),3:(-1,0,0),4:(1,0,0),5:(0,0,1)}[index]
+        camera.SetPosition(*(center+np.array(vector)*distance));camera.SetViewUp(*((0,1,0) if index==5 else (0,0,1)))
+        self.renderer.ResetCameraClippingRange();self.render()
+
+    def is_busy(self):return self.worker is not None and self.worker.isRunning()
+    def shutdown(self):
+        if self.marker:self.marker.SetEnabled(False)
+        self.vtk.Finalize()
