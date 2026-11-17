@@ -1,0 +1,16 @@
+{
+  "id": "hichandut/brain-mri-2d-100ep",
+  "title": "Brain Mri 2D 100Ep",
+  "code_file": "train.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "kernel_sources": [
+    "hichandut/brain-mri-prepare-cpu"
+  ],
+  "competition_sources": [],
+  "machine_shape": "NvidiaL4"
+}
