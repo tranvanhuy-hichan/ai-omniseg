@@ -1,9 +1,12 @@
 """Qt Widgets workspace for MRI slice review and reference-mask overlays."""
 import argparse
 import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
+import nibabel as nib
 import numpy as np
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QImage, QPainter, QPixmap
@@ -18,6 +21,17 @@ from .volume import COLORS, Volume, render_slice
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = (Path(__file__).resolve().parent / 'assets').as_posix()
+# This pilot checkpoint (epoch 43/100, fold 0) is the only one trained so far;
+# point these at a newer run's dataset/fold/checkpoint when one is trained.
+INFER_DATASET_ID = 501
+INFER_FOLD = 0
+INFER_TRAINER = 'nnUNetTrainer_100epochs'
+INFER_CHECKPOINT = 'checkpoint_best.pth'
+INFER_ENV = {
+    'nnUNet_raw': str(ROOT / 'data/nnUNet_raw'),
+    'nnUNet_preprocessed': str(ROOT / 'data/nnUNet_preprocessed'),
+    'nnUNet_results': str(ROOT / 'artifacts/nnUNet_results'),
+}
 STYLE = '''
 QMainWindow, QWidget { background: #f3f6fa; color: #24354a; font-family: "Noto Sans", "Segoe UI", sans-serif; font-size: 14px; }
 QLabel { background: transparent; }
@@ -65,6 +79,8 @@ QListWidget::item { padding: 10px 10px; border-bottom: 1px solid #e9eef4; border
 QListWidget::item:hover { background: #eef5f7; }
 QListWidget::item:selected { background: #e1f0f2; color: #076d78; border-left: 3px solid #087e8b; font-weight: 600; }
 QFrame#libraryFooter { background: #f3f6fa; border-radius: 6px; border: none; }
+QFrame#inferBox { background: #e5f4f1; border: 1px solid #bfe3dc; border-radius: 8px; }
+QFrame#inferBox QPushButton#primary { font-size: 14px; padding: 11px 13px; }
 QGroupBox { background: white; border: 1px solid #dce5ee; border-radius: 8px; margin-top: 12px; padding: 16px 13px 13px; font-weight: 600; font-size: 13px; color: #42566d; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; color: #1c2c3f; font-size: 13px; }
 QGroupBox QLabel, QGroupBox QCheckBox { background: white; }
@@ -92,6 +108,46 @@ def label(text, name=None):
     return widget
 
 
+class Spinner(QWidget):
+    """Small indeterminate spinner overlaid while a volume/mask loads in the background."""
+
+    def __init__(self, parent=None, diameter=48):
+        super().__init__(parent)
+        self.diameter = diameter
+        self.angle = 0
+        self.setFixedSize(diameter, diameter)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._advance)
+        self.hide()
+
+    def _advance(self):
+        self.angle = (self.angle + 30) % 360
+        self.update()
+
+    def start(self):
+        if self.parent() is not None:
+            parent_rect = self.parent().rect()
+            self.move((parent_rect.width()-self.width())//2, (parent_rect.height()-self.height())//2)
+        self.show(); self.raise_(); self.timer.start(80)
+
+    def stop(self):
+        self.timer.stop(); self.hide()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(4, 4, -4, -4)
+        pen_width = max(3, self.diameter // 12)
+        for i in range(12):
+            fade = (i / 12)
+            color = QColor('#148c99')
+            color.setAlphaF(max(0.08, 1 - fade))
+            pen = painter.pen(); pen.setColor(color); pen.setWidth(pen_width); pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            start_angle = (self.angle - i * 30) * 16
+            painter.drawArc(rect, start_angle, 16 * 18)
+
+
 class Loader(QThread):
     loaded = Signal(object)
     failed = Signal(str)
@@ -107,6 +163,44 @@ class Loader(QThread):
             self.failed.emit(str(error))
 
 
+class InferenceWorker(QThread):
+    """Runs nnUNetv2_predict on the open volume's 4 channels in a temp folder."""
+    done = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, volume):
+        super().__init__()
+        self.volume = volume
+
+    def run(self):
+        try:
+            with tempfile.TemporaryDirectory(prefix='neuroseg-infer-') as tmp:
+                tmp = Path(tmp)
+                input_dir, output_dir = tmp / 'input', tmp / 'output'
+                input_dir.mkdir(); output_dir.mkdir()
+                case = self.volume.path.name.removesuffix('.nii.gz').removesuffix('.nii')
+                data, affine = self.volume.data, self.volume.image.affine
+                for channel in range(data.shape[3]):
+                    nib.save(nib.Nifti1Image(data[..., channel], affine), input_dir / f'{case}_{channel:04d}.nii.gz')
+                env = dict(os.environ)
+                for key, value in INFER_ENV.items():
+                    env.setdefault(key, value)
+                subprocess.run(
+                    ['nnUNetv2_predict', '-d', str(INFER_DATASET_ID), '-c', '2d', '-f', str(INFER_FOLD),
+                     '-i', str(input_dir), '-o', str(output_dir), '-tr', INFER_TRAINER, '-chk', INFER_CHECKPOINT],
+                    env=env, check=True, capture_output=True, text=True)
+                predicted = output_dir / f'{case}.nii.gz'
+                if not predicted.is_file():
+                    raise FileNotFoundError('Không tìm thấy mask dự đoán sau khi chạy xong.')
+                destination = Path(tempfile.gettempdir()) / f'neuroseg-prediction-{case}.nii.gz'
+                destination.write_bytes(predicted.read_bytes())
+                self.done.emit(str(destination))
+        except subprocess.CalledProcessError as error:
+            self.failed.emit((error.stderr or str(error))[-2000:])
+        except Exception as error:
+            self.failed.emit(str(error))
+
+
 class SliceCanvas(QWidget):
     step = Signal(int)
     expand = Signal()
@@ -116,6 +210,11 @@ class SliceCanvas(QWidget):
         self.axis, self.rgb, self.spacing = axis, None, (1, 1)
         self.setMinimumSize(180, 180)
         self.setSizePolicy(self.sizePolicy().Policy.Expanding, self.sizePolicy().Policy.Expanding)
+        self.spinner = Spinner(self, diameter=32)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.spinner.move((self.width()-self.spinner.width())//2, (self.height()-self.spinner.height())//2)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -313,6 +412,16 @@ class Workspace(QMainWindow):
         self.inspector = right_scroll
         self.inspector_layout = right_layout
         right_layout.addWidget(label('BẢNG ĐIỀU KHIỂN', 'eyebrow'))
+        infer_box = QFrame(); infer_box.setObjectName('inferBox')
+        infer_layout = QVBoxLayout(infer_box); infer_layout.setContentsMargins(12, 12, 12, 12); infer_layout.setSpacing(8)
+        self.infer = QPushButton('▶  Chạy phân đoạn'); self.infer.setObjectName('primary'); self.infer.setEnabled(False)
+        self.infer.setToolTip('Chạy checkpoint đã train (epoch 43/100, fold 0) trên ảnh đang mở.')
+        self.infer.clicked.connect(self.run_inference)
+        self.inference_worker = None
+        infer_layout.addWidget(self.infer)
+        infer_note = label('Viewer nghiên cứu · chưa có kết quả AI hoặc mô hình được tích hợp. Không dùng để đưa ra chẩn đoán.', 'muted')
+        infer_layout.addWidget(infer_note)
+        right_layout.addWidget(infer_box)
         display = QGroupBox('Hiển thị MRI'); self.slice_display_group = display; display_layout = QVBoxLayout(display); display_layout.setSpacing(6)
         windowing = QGridLayout(); windowing.setHorizontalSpacing(10); windowing.setVerticalSpacing(2)
         self.level = QDoubleSpinBox(); self.width_control = QDoubleSpinBox()
@@ -343,13 +452,6 @@ class Workspace(QMainWindow):
         details = QGroupBox('Thông tin thể tích'); details_layout = QVBoxLayout(details)
         self.details = label('Chưa mở MRI.', 'muted'); self.details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); details_layout.addWidget(self.details); right_layout.addWidget(details)
         right_layout.addStretch()
-        footer = QFrame(); footer.setStyleSheet('background: #eef3f8; border-radius: 6px;')
-        footer_layout = QVBoxLayout(footer); footer_layout.setContentsMargins(12, 12, 12, 12); footer_layout.setSpacing(8)
-        self.infer = QPushButton('Chạy phân đoạn'); self.infer.setEnabled(False); self.infer.setToolTip('Chưa tích hợp suy luận model trong phiên bản viewer này.')
-        footer_layout.addWidget(self.infer)
-        footer_note = label('Viewer nghiên cứu · chưa có kết quả AI hoặc mô hình được tích hợp. Không dùng để đưa ra chẩn đoán.', 'muted')
-        footer_layout.addWidget(footer_note)
-        right_layout.addWidget(footer)
         splitter.addWidget(right_scroll)
         splitter.setStretchFactor(0, 0); splitter.setStretchFactor(1, 1); splitter.setStretchFactor(2, 0)
         splitter.setSizes([220, 900, 360]); splitter.setCollapsible(0, False); splitter.setCollapsible(1, False); splitter.setCollapsible(2, False)
@@ -458,6 +560,8 @@ class Workspace(QMainWindow):
         self.loading = True
         self.open_button.setEnabled(False); self.mask_button.setEnabled(False); self.cases.setEnabled(False)
         self.statusBar().showMessage('Đang đọc thể tích…')
+        self.setCursor(Qt.CursorShape.BusyCursor)
+        for panel in self.panels: panel.canvas.spinner.start()
         self.worker = Loader(path, volume)
         self.worker.loaded.connect(callback)
         self.worker.failed.connect(self.load_error)
@@ -467,6 +571,8 @@ class Workspace(QMainWindow):
     def finish_loading(self):
         self.loading = False
         self.open_button.setEnabled(True); self.mask_button.setEnabled(self.volume is not None); self.cases.setEnabled(True)
+        for panel in self.panels: panel.canvas.spinner.stop()
+        self.unsetCursor()
 
     def load_error(self, message):
         self.statusBar().showMessage('Không đọc được dữ liệu.')
@@ -489,6 +595,9 @@ class Workspace(QMainWindow):
             panel.prev_button.setEnabled(True); panel.next_button.setEnabled(True)
         self.clear_mask()
         self.level.setEnabled(True); self.width_control.setEnabled(True)
+        self.infer.setEnabled(volume.data.shape[3] == 4)
+        self.infer.setToolTip('Chạy checkpoint đã train (epoch 43/100, fold 0) trên ảnh đang mở.' if volume.data.shape[3] == 4
+                              else 'Cần đủ 4 kênh FLAIR/T1/T1Gd/T2 (định dạng MSD Task01) để chạy checkpoint này.')
         self.reset_window()
         self.statusBar().showMessage('Đã mở MRI · Nạp mask riêng để xem nhãn · Chưa chạy AI')
 
@@ -528,10 +637,35 @@ class Workspace(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, 'Mở mask cùng ca (nhãn 0–3)', str(initial), 'NIfTI (*.nii.gz *.nii)')
         if path: self.load_mask(path)
 
-    def load_mask(self, path):
-        self.start_worker(path, lambda mask: self.set_mask(mask, path), self.volume)
+    def run_inference(self):
+        if self.volume is None or self.inference_worker is not None: return
+        self.infer.setEnabled(False); self.infer.setText('⏳  Đang chạy phân đoạn…')
+        self.statusBar().showMessage('Đang chạy nnU-Net trên ảnh đang mở…')
+        for panel in self.panels: panel.canvas.spinner.start()
+        self.inference_worker = InferenceWorker(self.volume)
+        self.inference_worker.done.connect(self.inference_done)
+        self.inference_worker.failed.connect(self.inference_failed)
+        self.inference_worker.finished.connect(self.inference_finished)
+        self.inference_worker.start()
 
-    def set_mask(self, mask, path):
+    def inference_done(self, mask_path):
+        self.load_mask(mask_path, is_ai_result=True)
+        self.statusBar().showMessage('Đã chạy xong phân đoạn · Kết quả AI, không phải nhãn tham chiếu')
+
+    def inference_failed(self, message):
+        self.statusBar().showMessage('Chạy phân đoạn thất bại.')
+        QMessageBox.warning(self, 'Không chạy được phân đoạn', message)
+
+    def inference_finished(self):
+        self.inference_worker = None
+        self.infer.setEnabled(self.volume is not None and self.volume.data.shape[3] == 4)
+        self.infer.setText('▶  Chạy phân đoạn')
+        for panel in self.panels: panel.canvas.spinner.stop()
+
+    def load_mask(self, path, is_ai_result=False):
+        self.start_worker(path, lambda mask: self.set_mask(mask, path, is_ai_result), self.volume)
+
+    def set_mask(self, mask, path, is_ai_result=False):
         self.mask, self.mask_path = mask, Path(path)
         self.show_mask.setEnabled(True); self.show_mask.setChecked(True); self.clear_mask_button.setEnabled(True)
         amounts = self.volume.label_volumes(mask)
@@ -539,9 +673,14 @@ class Workspace(QMainWindow):
             count = np.count_nonzero(mask == index+1)
             widget.setText(f'{amounts[index]:.2f} mL · {count:,} voxel' if amounts else f'{count:,} voxel · thiếu đơn vị để tính mL')
             toggle.blockSignals(True); toggle.setChecked(True); toggle.blockSignals(False); toggle.setEnabled(True)
-        source = 'Nhãn tham chiếu' if Path(path).parent.name == 'labelsTr' else 'Mask do người dùng nạp'
-        self.mask_source.setText(f'{source}: {Path(path).name}\nKhông phải kết quả AI được chạy trong viewer.')
-        self.statusBar().showMessage(f'Đã nạp {source.lower()} · {Path(path).name}')
+        if is_ai_result:
+            source = 'Kết quả AI (checkpoint epoch 43/100, chưa train xong)'
+            note = 'Dự đoán của model đang huấn luyện. Không dùng để đưa ra chẩn đoán.'
+        else:
+            source = 'Nhãn tham chiếu' if Path(path).parent.name == 'labelsTr' else 'Mask do người dùng nạp'
+            note = 'Không phải kết quả AI được chạy trong viewer.'
+        self.mask_source.setText(f'{source}\n{note}')
+        self.statusBar().showMessage(f'Đã nạp {source.lower()}')
         self.refresh()
         self.update_3d_input()
 
