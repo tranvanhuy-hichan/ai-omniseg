@@ -10,7 +10,7 @@ Usage:
 
 Example: scripts/pipeline.sh train 501 2d 0 --npz
 Prediction uses exactly the specified fold, not an untrained five-fold ensemble.
-Activate .venv and prepare a real dataset first. No pretrained weights are bundled.
+Activate your Python environment (or use Makefile) and prepare a real dataset first. No pretrained weights are bundled.
 HELP
 }
 if [[ $# -eq 0 || "$1" == "--help" ]]; then usage; exit 0; fi

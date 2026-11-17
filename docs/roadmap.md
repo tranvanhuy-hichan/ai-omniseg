@@ -14,7 +14,9 @@
 - [ ] Train and evaluate a 2D baseline; record configuration and hardware
 - [ ] Add per-case Dice/IoU with explicit empty-mask handling
 - [ ] Compare 3D configuration when resources permit
-- [ ] Export meshes in physical coordinates and measure segmented volume
-- [ ] Add a slice/3D viewer and inference API
+- [x] Render mask surfaces in physical coordinates and measure labeled voxel volume
+- [ ] Export meshes
+- [x] Add native slice and 3D mask-surface viewing
+- [ ] Add inference API and model integration
 
 No performance results or completion dates are promised by this roadmap.

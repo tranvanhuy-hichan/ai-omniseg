@@ -1,8 +1,8 @@
-# Brain MRI Segmentation
+# NeuroSeg
 
 **Tiếng Việt** · [English](README.md)
 
-Dự án độc lập dùng **nnU-Net v2 như dependency**, không fork hoặc sao chép framework.
+**NeuroSeg** là dự án độc lập dùng **nnU-Net v2 như dependency**, không fork hoặc sao chép framework.
 Mục tiêu ban đầu: phân đoạn vùng u não trên MRI, đánh giá theo bệnh nhân và tạo bề mặt 3D từ mask.
 Đây là dự án nghiên cứu, chưa phải công cụ chẩn đoán lâm sàng.
 
@@ -10,8 +10,8 @@ Mục tiêu ban đầu: phân đoạn vùng u não trên MRI, đánh giá theo b
 
 - Đã có importer NIfTI nhiều kênh, kiểm tra geometry và nhãn trước khi tạo dataset.
 - Đã có lệnh plan/preprocess, train theo fold và predict theo đúng fold đã train.
-- Chưa có dataset thật, checkpoint, kết quả đánh giá hoặc ứng dụng web.
-- Dựng 3D và viewer là bước tiếp theo; không phải tính năng đã hoàn thành.
+- Repo không phân phối dataset, checkpoint hoặc kết quả đánh giá; dataset đã tải chỉ nằm trên máy cục bộ.
+- Đã có viewer desktop xem lát cắt và mask; đã có dựng bề mặt 3D từ mask; suy luận AI chưa có.
 
 ## Cài đặt
 
@@ -32,6 +32,33 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 `requirements.txt` ghim nnU-Net 2.8.1. PyTorch/CUDA được chọn theo hệ điều hành và driver;
 không coi môi trường CUDA trên máy này là cấu hình dùng được cho mọi máy.
+
+## Chạy nhanh bằng Makefile
+
+Mặc định dùng `~/venvs/ai`, không cần activate và không tạo venv mới.
+Có thể đổi bằng `make doctor VENV=/duong/dan/venv`.
+
+```bash
+make help
+make setup          # cài nnU-Net vào venv có sẵn (cần uv)
+make doctor
+make check
+make init-config    # sau đó sửa hai file configs/*.local.json theo dataset thật
+make prepare
+make plan
+make train          # dataset 501, cấu hình 2d, fold 0; train đầy đủ
+make predict
+```
+
+Chỉ chạy prepare/plan/train khi đã có dataset và mask đúng quy ước.
+`make setup-dev` cài dependency test theo requirements-dev.txt, có thể điều chỉnh
+phiên bản package trong môi trường dùng chung; không cần chạy lại nếu test đã chạy được.
+
+```bash
+make train CONFIG=3d_fullres FOLD=0
+make resume CONFIG=2d FOLD=0
+make predict INPUT=data/inference OUTPUT=artifacts/predictions
+```
 
 ## Chuẩn bị dữ liệu
 
@@ -135,3 +162,25 @@ Code gốc dùng [AGPL-3.0-or-later](LICENSE), giống Nestor Agent. nnU-Net và
 Xem [hướng dẫn đóng góp](CONTRIBUTING.md), [quy tắc ứng xử](CODE_OF_CONDUCT.md),
 [báo lỗi bảo mật](SECURITY.md) và [lộ trình](docs/roadmap.md).
 CI chỉ kiểm tra importer bằng dữ liệu tổng hợp, không xác nhận chất lượng y khoa.
+
+## Selected dataset / Dataset đã chọn
+
+The initial baseline uses **MSD Task01 BrainTumour (release 2.0)**, with 4 MRI channels and
+labels 0=background, 1=edema, 2=non-enhancing tumor, 3=enhancing tumor.
+See [dataset decision, download and evaluation plan](docs/dataset.md).
+Use `make import-msd` for its 4D files; the earlier binary manifest example is for custom data only.
+
+## Native desktop viewer
+
+```bash
+make setup-desktop
+make desktop
+```
+
+View real NIfTI slices, MRI channels and separately loaded masks.
+See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available; model inference is still pending.
+
+## Kaggle training
+
+CPU preprocessing and a budgeted 100-epoch 2D pilot are prepared in `kaggle/`.
+See [Kaggle stages, quota, checkpoints and commands](docs/kaggle-training.md).

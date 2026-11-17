@@ -17,5 +17,5 @@ Importer checks shape, affine, finite intensities, allowed label values, channel
 It does not detect patient identity, remove identifying metadata, perform co-registration or create grouped splits.
 Multiple visits of the same patient must be handled explicitly by the user.
 
-No API, viewer, automated diagnostic report or pretrained weights are included.
+A native PySide6 slice/mask viewer is available in `desktop/`. No API, model inference, automated diagnostic report or pretrained weights are included.
 Future 3D export must preserve the NIfTI voxel-to-world affine, rather than treating voxel indices as millimeters.

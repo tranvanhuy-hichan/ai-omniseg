@@ -1,4 +1,4 @@
-# Brain MRI Segmentation
+# NeuroSeg
 
 [Tiếng Việt](README.vi.md) · **English**
 
@@ -6,7 +6,7 @@
 [![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
 
-An open-source research project for brain MRI tumor segmentation using **nnU-Net v2 as a dependency**.
+**NeuroSeg** is an open-source research project for brain MRI tumor segmentation using **nnU-Net v2 as a dependency**.
 The goal is a reproducible path from registered MRI volumes to segmentation masks, evaluation and 3D visualization.
 This is an independent application scaffold, not a fork of nnU-Net or a clinical diagnostic system.
 
@@ -17,9 +17,9 @@ This is an independent application scaffold, not a fork of nnU-Net or a clinical
 | Multi-channel NIfTI dataset importer | Evaluation on a named real dataset |
 | Geometry, label and duplicate-ID checks | Patient-grouped custom splits for longitudinal scans |
 | Plan/preprocess, train and predict wrappers | Mask-to-mesh export and physical volume measurements |
-| Synthetic-data tests and CI | Slice/3D viewer and application API |
+| Native MRI slice/mask viewer and synthetic-data tests | 3D viewer and inference API |
 
-No patient data, pretrained checkpoints, training results or finished viewer are included.
+No patient data, pretrained checkpoints or training results are included. A native slice viewer is available; MRI volume rendering and 3D mask surfaces are available; AI inference remains planned.
 
 ```text
 Registered MRI volumes + masks
@@ -47,6 +47,27 @@ Without `uv`, create a virtual environment and install the appropriate
 [PyTorch build](https://pytorch.org/get-started/locally/) first, then run
 `python -m pip install -r requirements.txt -r requirements-dev.txt`.
 The project pins nnU-Net 2.8.1; GPU dependencies depend on your platform and driver.
+
+### Makefile shortcuts
+
+`make` prints available commands. The default environment is `~/venvs/ai`; no activation
+or new environment is needed. Override it with `VENV=/path/to/venv`.
+`make setup` requires `uv` and installs the training dependencies into that environment.
+`make setup-dev` installs the development requirements and may change versions in a shared environment.
+
+```bash
+make doctor
+make check
+make init-config     # edit the local configs for your real dataset next
+make prepare
+make plan
+make train           # full training: dataset 501, 2d, fold 0
+make predict
+```
+
+Use `DATASET=501 CONFIG=3d_fullres FOLD=0` to select another configuration.
+Use `make resume` to continue training, or `INPUT=... OUTPUT=...` for prediction paths.
+These targets require real prepared data and trained weights where applicable.
 
 ### 1. Prepare a dataset
 
@@ -148,3 +169,25 @@ when publishing work based on it:
 
 Upstream references: [dataset format](https://github.com/MIC-DKFZ/nnUNet/blob/v2.8.1/documentation/dataset_format.md)
 and [training/inference](https://github.com/MIC-DKFZ/nnUNet/blob/v2.8.1/documentation/how_to_use_nnunet.md).
+
+## Selected dataset / Dataset đã chọn
+
+The initial baseline uses **MSD Task01 BrainTumour (release 2.0)**, with 4 MRI channels and
+labels 0=background, 1=edema, 2=non-enhancing tumor, 3=enhancing tumor.
+See [dataset decision, download and evaluation plan](docs/dataset.md).
+Use `make import-msd` for its 4D files; the earlier binary manifest example is for custom data only.
+
+## Native desktop viewer
+
+```bash
+make setup-desktop
+make desktop
+```
+
+View real NIfTI slices, MRI channels and separately loaded masks.
+See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available; model inference is still pending.
+
+## Kaggle training
+
+CPU preprocessing and a budgeted 100-epoch 2D pilot are prepared in `kaggle/`.
+See [Kaggle stages, quota, checkpoints and commands](docs/kaggle-training.md).
