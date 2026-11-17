@@ -6,6 +6,8 @@
 Mục tiêu ban đầu: phân đoạn vùng u não trên MRI, đánh giá theo bệnh nhân và tạo bề mặt 3D từ mask.
 Đây là dự án nghiên cứu, chưa phải công cụ chẩn đoán lâm sàng.
 
+![Viewer desktop NeuroSeg hiển thị mask khối u do AI dự đoán](docs/images/desktop-viewer-segmentation.png)
+
 ## Trạng thái
 
 - Đã có importer NIfTI nhiều kênh, kiểm tra geometry và nhãn trước khi tạo dataset.
@@ -178,9 +180,7 @@ make desktop
 ```
 
 Xem lát cắt NIfTI thật, các kênh MRI và mask nạp riêng, hoặc chạy trực tiếp checkpoint
-đang huấn luyện ngay trong viewer:
-
-![Viewer desktop NeuroSeg hiển thị mask khối u do AI dự đoán](docs/images/desktop-viewer-segmentation.png)
+đang huấn luyện ngay trong viewer.
 
 Xem [cách dùng và giới hạn của viewer desktop](docs/desktop.md). Đã có dựng thể tích MRI và bề mặt 3D từ mask bằng VTK.
 Nút "Chạy phân đoạn" gọi checkpoint thử nghiệm hiện tại (epoch 43/100, fold 0) qua

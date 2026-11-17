@@ -10,6 +10,8 @@
 The goal is a reproducible path from registered MRI volumes to segmentation masks, evaluation and 3D visualization.
 This is an independent application scaffold, not a fork of nnU-Net or a clinical diagnostic system.
 
+![NeuroSeg desktop viewer showing an AI-predicted tumor mask](docs/images/desktop-viewer-segmentation.png)
+
 ## Current scope
 
 | Available | Planned |
@@ -185,9 +187,7 @@ make desktop
 ```
 
 View real NIfTI slices, MRI channels and separately loaded masks, or run the
-in-progress checkpoint directly from the viewer:
-
-![NeuroSeg desktop viewer showing an AI-predicted tumor mask](docs/images/desktop-viewer-segmentation.png)
+in-progress checkpoint directly from the viewer.
 
 See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available.
 The "Run segmentation" button invokes the current pilot checkpoint (epoch 43/100, fold 0) via
