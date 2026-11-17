@@ -1,0 +1,2 @@
+# Install the PyTorch build matching your CUDA/CPU environment first.
+nnunetv2==2.8.1

@@ -1,0 +1,7 @@
+[
+  {
+    "id": "patient001",
+    "images": ["../data/source/patient001/flair.nii.gz", "../data/source/patient001/t1.nii.gz", "../data/source/patient001/t1ce.nii.gz", "../data/source/patient001/t2.nii.gz"],
+    "label": "../data/source/patient001/tumor_binary.nii.gz"
+  }
+]
