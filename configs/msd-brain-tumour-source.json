@@ -1,0 +1,16 @@
+{
+  "task": "Task01_BrainTumour",
+  "release": "2.0 04/05/2018",
+  "homepage": "https://medicaldecathlon.com/",
+  "download": "https://msd-for-monai.s3-us-west-2.amazonaws.com/Task01_BrainTumour.tar",
+  "checksum_source": "https://github.com/Project-MONAI/MONAI/blob/dev/monai/apps/datasets.py",
+  "md5": "240a19d752f0d9e9101544901065d872",
+  "archive_bytes": 7608266240,
+  "license": "CC-BY-SA 4.0",
+  "num_labeled_cases": 484,
+  "num_unlabeled_test_cases": 266,
+  "channel_order": ["FLAIR", "T1w", "t1gd", "T2w"],
+  "labels": {"background": 0, "edema": 1, "non_enhancing_tumor": 2, "enhancing_tumor": 3},
+  "evaluation_regions": {"WT": [1, 2, 3], "TC": [2, 3], "ET": [3]},
+  "evaluation_plan": "Patient/case-level five-fold cross-validation on 484 labeled cases; report out-of-fold metrics. Official 266 test cases have no public labels and are not a local scored test set."
+}
