@@ -11,7 +11,7 @@ Mục tiêu ban đầu: phân đoạn vùng u não trên MRI, đánh giá theo b
 - Đã có importer NIfTI nhiều kênh, kiểm tra geometry và nhãn trước khi tạo dataset.
 - Đã có lệnh plan/preprocess, train theo fold và predict theo đúng fold đã train.
 - Repo không phân phối dataset, checkpoint hoặc kết quả đánh giá; dataset đã tải chỉ nằm trên máy cục bộ.
-- Đã có viewer desktop xem lát cắt và mask; đã có dựng bề mặt 3D từ mask; suy luận AI chưa có.
+- Đã có viewer desktop xem lát cắt và mask; đã có dựng bề mặt 3D từ mask; đã chạy được checkpoint đang huấn luyện ngay trong viewer.
 
 ## Cài đặt
 
@@ -170,15 +170,21 @@ labels 0=background, 1=edema, 2=non-enhancing tumor, 3=enhancing tumor.
 See [dataset decision, download and evaluation plan](docs/dataset.md).
 Use `make import-msd` for its 4D files; the earlier binary manifest example is for custom data only.
 
-## Native desktop viewer
+## Viewer desktop native
 
 ```bash
 make setup-desktop
 make desktop
 ```
 
-View real NIfTI slices, MRI channels and separately loaded masks.
-See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available; model inference is still pending.
+Xem lát cắt NIfTI thật, các kênh MRI và mask nạp riêng, hoặc chạy trực tiếp checkpoint
+đang huấn luyện ngay trong viewer:
+
+![Viewer desktop NeuroSeg hiển thị mask khối u do AI dự đoán](docs/images/desktop-viewer-segmentation.png)
+
+Xem [cách dùng và giới hạn của viewer desktop](docs/desktop.md). Đã có dựng thể tích MRI và bề mặt 3D từ mask bằng VTK.
+Nút "Chạy phân đoạn" gọi checkpoint thử nghiệm hiện tại (epoch 43/100, fold 0) qua
+`nnUNetv2_predict`; kết quả luôn được gắn nhãn là kết quả AI, không bao giờ coi là nhãn tham chiếu.
 
 ## Kaggle training
 

@@ -184,8 +184,14 @@ make setup-desktop
 make desktop
 ```
 
-View real NIfTI slices, MRI channels and separately loaded masks.
-See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available; model inference is still pending.
+View real NIfTI slices, MRI channels and separately loaded masks, or run the
+in-progress checkpoint directly from the viewer:
+
+![NeuroSeg desktop viewer showing an AI-predicted tumor mask](docs/images/desktop-viewer-segmentation.png)
+
+See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available.
+The "Run segmentation" button invokes the current pilot checkpoint (epoch 43/100, fold 0) via
+`nnUNetv2_predict`; its output is labeled as an AI result, never as a reference label.
 
 ## Kaggle training
 
