@@ -76,7 +76,7 @@ os.environ.update(nnUNet_raw=str(work/'raw'), nnUNet_preprocessed=str(work/'prep
 (work/'raw').mkdir(exist_ok=True)
 '''
     launch = f"from pathlib import Path\nPath('/kaggle/working/train_budget.py').write_text({train_source!r})\n"
-    launch += "subprocess.run([sys.executable, '/kaggle/working/train_budget.py', '--hours', '2', '--fold', '0'], check=True)\n"
+    launch += "subprocess.run([sys.executable, '/kaggle/working/train_budget.py', '--hours', '8', '--fold', '0'], check=True)\n"
     launch += "shutil.rmtree('/kaggle/working/preprocessed')\nprint(Path('/kaggle/working/train-report.json').read_text())\n"
     (HERE/'liver_train/train.ipynb').write_text(json.dumps(notebook([install,stage,launch]),indent=1))
     for folder,slug,gpu in [('liver_prepare','liver-ct-prepare-cpu',False),('liver_train','liver-ct-3dlowres-100ep',True)]:
