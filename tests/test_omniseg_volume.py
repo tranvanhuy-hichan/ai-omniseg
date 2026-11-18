@@ -2,7 +2,7 @@ import nibabel as nib
 import numpy as np
 import pytest
 
-from desktop.volume import Volume, plane, render_slice
+from omniseg.core.volume import Volume, plane, render_slice
 
 
 def make_volume(tmp_path):

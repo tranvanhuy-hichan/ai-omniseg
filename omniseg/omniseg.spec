@@ -1,15 +1,15 @@
-# PyInstaller spec for the NeuroSeg desktop viewer.
-# Build with: pyinstaller desktop/neuroseg.spec --distpath dist --workpath build
+# PyInstaller spec for the OmniSeg desktop viewer.
+# Build with: pyinstaller omniseg/omniseg.spec --distpath dist --workpath build
 from pathlib import Path
 
 block_cipher = None
 root = Path(SPECPATH).resolve().parent
 
 a = Analysis(
-    [str(root / 'desktop' / 'entry_point.py')],
+    [str(root / 'omniseg' / 'entry_point.py')],
     pathex=[str(root)],
     binaries=[],
-    datas=[(str(root / 'desktop' / 'assets'), 'desktop/assets')],
+    datas=[(str(root / 'omniseg' / 'assets'), 'omniseg/assets')],
     hiddenimports=[
         'vtkmodules.all',
         'vtkmodules.util.numpy_support',
@@ -29,7 +29,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='NeuroSeg',
+    name='OmniSeg',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -50,5 +50,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='NeuroSeg',
+    name='OmniSeg',
 )

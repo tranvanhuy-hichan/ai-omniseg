@@ -6,6 +6,8 @@ VENV ?= $(HOME)/venvs/ai
 PYTHON := $(VENV)/bin/python
 export PATH := $(VENV)/bin:$(PATH)
 
+TASK ?= brain_tumour_mri
+# DATASET is the nnU-Net dataset id for TASK; see tasks/<TASK>/task.json.
 DATASET ?= 501
 CONFIG ?= 2d
 FOLD ?= 0
@@ -21,14 +23,14 @@ EXTRA ?=
 
 help:
 	@printf '%s\n' \
-	  'Brain MRI Segmentation — mặc định dùng ~/venvs/ai' \
+	  'OmniSeg — phân đoạn ảnh y khoa đa mô hình, mặc định dùng ~/venvs/ai' \
 	  '' \
 	  'make setup        Cài dependency nnU-Net vào venv có sẵn' \
 	  'make setup-dev    Cài dependency cho test' \
 	  'make init-config  Tạo config local từ example, giữ file đã có' \
 	  'make setup-desktop Cài PySide6 vào venv có sẵn' \
-	  'make desktop     Mở ứng dụng desktop native' \
-	  'make build-desktop Đóng gói NeuroSeg thành app desktop (PyInstaller, dist/NeuroSeg/)' \
+	  'make desktop     Mở ứng dụng desktop OmniSeg' \
+	  'make build-desktop Đóng gói OmniSeg thành app desktop (PyInstaller, dist/OmniSeg/)' \
 	  'make doctor       Kiểm tra nnU-Net, PyTorch và CUDA' \
 	  'make test         Chạy test với dữ liệu tổng hợp' \
 	  'make check        Kiểm tra test và cú pháp shell' \
@@ -39,7 +41,10 @@ help:
 	  'make resume       Tiếp tục checkpoint đang train' \
 	  'make predict      Predict bằng fold đã train' \
 	  '' \
-	  'Ví dụ: make train DATASET=501 CONFIG=3d_fullres FOLD=0' \
+	  'Mỗi mô hình (não, phổi, tim…) là một "task" trong tasks/<task>/task.json;' \
+	  'DATASET/CONFIG/FOLD dưới đây phải khớp với task.json của TASK đang chọn.' \
+	  '' \
+	  'Ví dụ: make train TASK=brain_tumour_mri DATASET=501 CONFIG=3d_fullres FOLD=0' \
 	  '        make predict INPUT=data/inference OUTPUT=artifacts/predictions' \
 	  '        make train EXTRA="-device cpu"' \
 	  '        make doctor VENV=/path/to/venv' \
@@ -91,11 +96,11 @@ setup-desktop: check-venv
 	uv pip install --python "$(PYTHON)" -r requirements-desktop.txt
 
 desktop: check-venv
-	"$(PYTHON)" -m desktop $(EXTRA)
+	"$(PYTHON)" -m omniseg $(EXTRA)
 
 build-desktop: check-venv
 	uv pip install --python "$(PYTHON)" pyinstaller
-	"$(PYTHON)" -m PyInstaller desktop/neuroseg.spec --distpath dist --workpath build --noconfirm
+	"$(PYTHON)" -m PyInstaller omniseg/omniseg.spec --distpath dist --workpath build --noconfirm
 
 .PHONY: kaggle-quota kaggle-build kaggle-prepare kaggle-train kaggle-status kaggle-output
 kaggle-quota:

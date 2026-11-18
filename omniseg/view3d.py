@@ -12,9 +12,9 @@ from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper, vtkRenderer
 from vtkmodules.vtkInteractionStyle import vtkInteractorStyleTrackballCamera
 from vtkmodules.vtkRenderingAnnotation import vtkAnnotatedCubeActor
 from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
-from .surfaces import build_surfaces
-from .anatomy import create_anatomy, set_anatomy_opacity
-from .volume import COLORS
+from .core.surfaces import build_surfaces
+from .core.anatomy import create_anatomy, set_anatomy_opacity
+from .core.volume import COLORS
 
 NAMES = {1:'Phù nề',2:'U không tăng tương phản',3:'U tăng tương phản'}
 

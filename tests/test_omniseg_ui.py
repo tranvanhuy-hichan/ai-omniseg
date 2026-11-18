@@ -12,8 +12,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from desktop.app import STYLE, Workspace
-from desktop.volume import Volume
+from omniseg.app import STYLE, Workspace
+from omniseg.core.volume import Volume
 
 
 @pytest.fixture

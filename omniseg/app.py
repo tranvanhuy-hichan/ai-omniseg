@@ -1,4 +1,4 @@
-"""Qt Widgets workspace for MRI slice review and reference-mask overlays."""
+"""Qt Widgets workspace for slice review, reference-mask overlays and inference."""
 import argparse
 import os
 import subprocess
@@ -17,22 +17,12 @@ from PySide6.QtWidgets import (
     QLineEdit, QGroupBox, QScrollArea, QStackedWidget,
 )
 
-from .volume import COLORS, Volume, render_slice
+from .core.volume import COLORS, Volume, render_slice
+from .core import inference
+from . import registry
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = (Path(__file__).resolve().parent / 'assets').as_posix()
-# This pilot checkpoint (fold 0, trained the full 100/100 epochs) is the only
-# one trained so far; point these at a newer run's dataset/fold/checkpoint
-# when one is trained.
-INFER_DATASET_ID = 501
-INFER_FOLD = 0
-INFER_TRAINER = 'nnUNetTrainer_100epochs'
-INFER_CHECKPOINT = 'checkpoint_final.pth'
-INFER_ENV = {
-    'nnUNet_raw': str(ROOT / 'data/nnUNet_raw'),
-    'nnUNet_preprocessed': str(ROOT / 'data/nnUNet_preprocessed'),
-    'nnUNet_results': str(ROOT / 'artifacts/nnUNet_results'),
-}
 STYLE = '''
 QMainWindow, QWidget { background: #f3f6fa; color: #24354a; font-family: "Noto Sans", "Segoe UI", sans-serif; font-size: 14px; }
 QLabel { background: transparent; }
@@ -167,17 +157,17 @@ class Loader(QThread):
 
 
 class InferenceWorker(QThread):
-    """Runs nnUNetv2_predict on the open volume's 4 channels in a temp folder."""
+    """Runs nnUNetv2_predict for `task` on the open volume's channels in a temp folder."""
     done = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, volume):
+    def __init__(self, volume, task):
         super().__init__()
-        self.volume = volume
+        self.volume, self.task = volume, task
 
     def run(self):
         try:
-            with tempfile.TemporaryDirectory(prefix='neuroseg-infer-') as tmp:
+            with tempfile.TemporaryDirectory(prefix='omniseg-infer-') as tmp:
                 tmp = Path(tmp)
                 input_dir, output_dir = tmp / 'input', tmp / 'output'
                 input_dir.mkdir(); output_dir.mkdir()
@@ -185,17 +175,14 @@ class InferenceWorker(QThread):
                 data, affine = self.volume.data, self.volume.image.affine
                 for channel in range(data.shape[3]):
                     nib.save(nib.Nifti1Image(data[..., channel], affine), input_dir / f'{case}_{channel:04d}.nii.gz')
-                env = dict(os.environ)
-                for key, value in INFER_ENV.items():
-                    env.setdefault(key, value)
+                env = inference.build_predict_env(self.task)
                 subprocess.run(
-                    ['nnUNetv2_predict', '-d', str(INFER_DATASET_ID), '-c', '2d', '-f', str(INFER_FOLD),
-                     '-i', str(input_dir), '-o', str(output_dir), '-tr', INFER_TRAINER, '-chk', INFER_CHECKPOINT],
+                    inference.build_predict_command(self.task, input_dir, output_dir),
                     env=env, check=True, capture_output=True, text=True)
                 predicted = output_dir / f'{case}.nii.gz'
                 if not predicted.is_file():
                     raise FileNotFoundError('Không tìm thấy mask dự đoán sau khi chạy xong.')
-                destination = Path(tempfile.gettempdir()) / f'neuroseg-prediction-{case}.nii.gz'
+                destination = Path(tempfile.gettempdir()) / f'omniseg-prediction-{case}.nii.gz'
                 destination.write_bytes(predicted.read_bytes())
                 self.done.emit(str(destination))
         except subprocess.CalledProcessError as error:
@@ -305,7 +292,9 @@ class Workspace(QMainWindow):
         self.loading = False
         self.focus_axis = None
         self.surface_viewer = None
-        self.setWindowTitle('NeuroSeg · Không gian phân đoạn')
+        self.tasks = registry.list_tasks()
+        self.current_task = self.tasks[0] if self.tasks else None
+        self.setWindowTitle('OmniSeg · Không gian phân đoạn')
         self.setWindowIcon(QIcon(f'{ASSETS}/logo.svg'))
         self.resize(1540, 940)
         self.setMinimumSize(1140, 740)
@@ -315,10 +304,19 @@ class Workspace(QMainWindow):
         bar = QHBoxLayout(header); bar.setContentsMargins(16, 4, 16, 4)
         brand_box = QWidget(); brand_layout = QHBoxLayout(brand_box); brand_layout.setContentsMargins(0, 0, 0, 0); brand_layout.setSpacing(8)
         logo = QLabel(); logo.setPixmap(QPixmap(f'{ASSETS}/logo.svg').scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        brand_layout.addWidget(logo); brand_layout.addWidget(label('NeuroSeg', 'brand'))
+        brand_layout.addWidget(logo); brand_layout.addWidget(label('OmniSeg', 'brand'))
         bar.addWidget(brand_box); bar.addSpacing(18)
         subtitle = label('KHÔNG GIAN PHÂN ĐOẠN', 'eyebrow'); subtitle.setWordWrap(False)
         subtitle.hide(); bar.addStretch()
+        bar.addWidget(label('Mô hình', 'muted'))
+        self.model_choice = QComboBox(); self.model_choice.setMinimumWidth(150)
+        for task in self.tasks:
+            self.model_choice.addItem(task.get('display_name', task['id']), task)
+        if not self.tasks:
+            self.model_choice.addItem('Không có mô hình nào trong tasks/')
+            self.model_choice.setEnabled(False)
+        self.model_choice.currentIndexChanged.connect(self.model_changed)
+        bar.addWidget(self.model_choice); bar.addSpacing(12)
         bar.addWidget(label('Viewer nghiên cứu', 'muted')); bar.addSpacing(12)
         self.open_button = QPushButton('＋  Mở MRI'); self.open_button.setObjectName('primary'); self.open_button.clicked.connect(self.open_file)
         self.mask_button = QPushButton('Nạp mask'); self.mask_button.clicked.connect(self.open_mask); self.mask_button.setEnabled(False)
@@ -418,7 +416,7 @@ class Workspace(QMainWindow):
         infer_box = QFrame(); infer_box.setObjectName('inferBox')
         infer_layout = QVBoxLayout(infer_box); infer_layout.setContentsMargins(12, 12, 12, 12); infer_layout.setSpacing(8)
         self.infer = QPushButton('▶  Chạy phân đoạn'); self.infer.setObjectName('primary'); self.infer.setEnabled(False)
-        self.infer.setToolTip('Chạy checkpoint đã train (100/100 epoch, fold 0) trên ảnh đang mở.')
+        self.infer.setToolTip('Chạy checkpoint đã train cho mô hình đang chọn trên ảnh đang mở.')
         self.infer.clicked.connect(self.run_inference)
         self.inference_worker = None
         infer_layout.addWidget(self.infer)
@@ -470,6 +468,13 @@ class Workspace(QMainWindow):
         escape = QAction('Trở lại ba mặt phẳng', self); escape.setShortcut('Esc'); escape.triggered.connect(lambda: self.set_focus(None)); self.addAction(escape)
         default = ROOT / 'data/source/Task01_BrainTumour/imagesTr'
         if default.is_dir(): self.populate(default)
+
+    def model_changed(self, index):
+        task = self.model_choice.itemData(index)
+        if task is not None:
+            self.current_task = task
+            if self.volume is not None:
+                self.infer.setEnabled(self.volume.data.shape[3] == inference.channel_count(task))
 
     def toggle_focus(self, axis):
         self.set_focus(None if self.focus_axis == axis else axis)
@@ -605,9 +610,12 @@ class Workspace(QMainWindow):
             panel.prev_button.setEnabled(True); panel.next_button.setEnabled(True)
         self.clear_mask()
         self.level.setEnabled(True); self.width_control.setEnabled(True)
-        self.infer.setEnabled(volume.data.shape[3] == 4)
-        self.infer.setToolTip('Chạy checkpoint đã train (100/100 epoch, fold 0) trên ảnh đang mở.' if volume.data.shape[3] == 4
-                              else 'Cần đủ 4 kênh FLAIR/T1/T1Gd/T2 (định dạng MSD Task01) để chạy checkpoint này.')
+        expected_channels = inference.channel_count(self.current_task) if self.current_task else None
+        matches = expected_channels is not None and volume.data.shape[3] == expected_channels
+        self.infer.setEnabled(matches)
+        self.infer.setToolTip('Chạy checkpoint đã train cho mô hình đang chọn trên ảnh đang mở.' if matches
+                              else f'Cần đủ {expected_channels} kênh ảnh đầu vào để chạy mô hình đang chọn.' if expected_channels
+                              else 'Chưa có mô hình nào để chạy.')
         self.reset_window()
         self.statusBar().showMessage('Đã mở MRI · Nạp mask riêng để xem nhãn · Chưa chạy AI')
 
@@ -648,13 +656,13 @@ class Workspace(QMainWindow):
         if path: self.load_mask(path)
 
     def run_inference(self):
-        if self.volume is None or self.inference_worker is not None: return
+        if self.volume is None or self.inference_worker is not None or self.current_task is None: return
         self.infer.setEnabled(False)
         self.infer_dots_count = 0; self._animate_infer_text(); self.infer_dots_timer.start()
         self.infer_progress.show()
         self.statusBar().showMessage('Đang chạy nnU-Net trên ảnh đang mở…')
         for panel in self.panels: panel.canvas.spinner.start()
-        self.inference_worker = InferenceWorker(self.volume)
+        self.inference_worker = InferenceWorker(self.volume, self.current_task)
         self.inference_worker.done.connect(self.inference_done)
         self.inference_worker.failed.connect(self.inference_failed)
         self.inference_worker.finished.connect(self.inference_finished)
@@ -675,7 +683,8 @@ class Workspace(QMainWindow):
     def inference_finished(self):
         self.inference_worker = None
         self.infer_dots_timer.stop(); self.infer_progress.hide()
-        self.infer.setEnabled(self.volume is not None and self.volume.data.shape[3] == 4)
+        expected_channels = inference.channel_count(self.current_task) if self.current_task else None
+        self.infer.setEnabled(self.volume is not None and expected_channels is not None and self.volume.data.shape[3] == expected_channels)
         self.infer.setText('▶  Chạy phân đoạn')
         for panel in self.panels: panel.canvas.spinner.stop()
 
@@ -691,8 +700,9 @@ class Workspace(QMainWindow):
             widget.setText(f'{amounts[index]:.2f} mL · {count:,} voxel' if amounts else f'{count:,} voxel · thiếu đơn vị để tính mL')
             toggle.blockSignals(True); toggle.setChecked(True); toggle.blockSignals(False); toggle.setEnabled(True)
         if is_ai_result:
-            source = 'Kết quả AI (checkpoint 100/100 epoch)'
-            note = 'Dự đoán của model đã huấn luyện xong fold 0. Chưa đánh giá đầy đủ; không dùng để đưa ra chẩn đoán.'
+            model_name = self.current_task.get('display_name', self.current_task['id']) if self.current_task else 'mô hình'
+            source = f'Kết quả AI ({model_name})'
+            note = 'Dự đoán của model đã huấn luyện. Chưa đánh giá đầy đủ; không dùng để đưa ra chẩn đoán.'
         else:
             source = 'Nhãn tham chiếu' if Path(path).parent.name == 'labelsTr' else 'Mask do người dùng nạp'
             note = 'Không phải kết quả AI được chạy trong viewer.'
@@ -724,7 +734,7 @@ class Workspace(QMainWindow):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Native MRI desktop viewer')
+    parser = argparse.ArgumentParser(description='OmniSeg native desktop viewer')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--mask', type=Path)
     parser.add_argument('--view', choices=['slices','3d'], default='slices')
@@ -738,7 +748,7 @@ def main():
     if sys.platform.startswith('linux') and not os.environ.get('QT_QPA_PLATFORM'):
         os.environ['QT_QPA_PLATFORM'] = 'xcb'
     app = QApplication(sys.argv[:1]); app.setStyle('Fusion'); app.setStyleSheet(STYLE)
-    app.setApplicationName('NeuroSeg')
+    app.setApplicationName('OmniSeg')
     window = Workspace(); window.show()
     if args.mask and not args.file:
         parser.error('--mask requires --file')

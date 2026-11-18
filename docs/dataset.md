@@ -37,7 +37,7 @@ upstream nnU-Net converter; do not feed that 4D image directly to the generic 3D
 
 Keep these four mutually exclusive labels for the first model. Do **not** use the earlier binary example
 for this dataset and do not assume BraTS labels 1/2/4. The selected convention is recorded separately in
-`configs/dataset.msd-brain-tumour.json`; the importer uses the real source metadata.
+`tasks/brain_tumour_mri/dataset.json`; the importer uses the real source metadata.
 
 For region metrics, derive these unions from the prediction and ground truth:
 
@@ -84,5 +84,6 @@ of external generalization or healthy-vs-tumor diagnosis should be made.
 ## Quyết định cho dự án
 
 Dùng 4 kênh MRI và 4 nhãn ở trên; baseline đầu tiên là nnU-Net **2D**, sau đó thử 3D khi đủ VRAM.
-Giữ nhãn nhiều lớp để app desktop sau này bật/tắt từng vùng và dựng 3D.
+Giữ nhãn nhiều lớp để app OmniSeg sau này bật/tắt từng vùng và dựng 3D. Đây là task `brain_tumour_mri`
+trong `tasks/`; các model phân đoạn vùng cơ thể khác (phổi, tim…) sẽ là các task riêng cùng cấu trúc.
 Đây là bài toán **phân đoạn vùng tổn thương**, không phải phân loại mọi bệnh não hoặc khẳng định chẩn đoán.

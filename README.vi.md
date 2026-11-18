@@ -1,12 +1,15 @@
-# NeuroSeg
+# OmniSeg
 
 **Tiếng Việt** · [English](README.md)
 
-**NeuroSeg** là dự án độc lập dùng **nnU-Net v2 như dependency**, không fork hoặc sao chép framework.
-Mục tiêu ban đầu: phân đoạn vùng u não trên MRI, đánh giá theo bệnh nhân và tạo bề mặt 3D từ mask.
-Đây là dự án nghiên cứu, chưa phải công cụ chẩn đoán lâm sàng.
+**OmniSeg** là dự án độc lập dùng **nnU-Net v2 như dependency**, không fork hoặc sao chép framework.
+Mục tiêu: phân đoạn ảnh y khoa đa mô hình — mỗi vùng cơ thể/modality (hiện tại là u não trên MRI, sau này
+có thể thêm CT phổi, CT tim…) là một **task** độc lập trong `tasks/`, dùng chung một app viewer — đánh giá
+theo bệnh nhân và tạo bề mặt 3D từ mask. Xem [docs/project-structure.md](docs/project-structure.md) và
+[tasks/README.md](tasks/README.md) để biết cách thêm model mới. Đây là dự án nghiên cứu, chưa phải công cụ
+chẩn đoán lâm sàng.
 
-![Viewer desktop NeuroSeg hiển thị mask khối u do AI dự đoán](docs/images/desktop-viewer-segmentation.png)
+![Viewer desktop OmniSeg hiển thị mask khối u do AI dự đoán](docs/images/desktop-viewer-segmentation.png)
 
 ## Trạng thái
 
@@ -145,7 +148,7 @@ không đo chất lượng mô hình trên dữ liệu thật.
 ## Cấu trúc thư mục
 
 Xem [project-structure.md](docs/project-structure.md) (tiếng Anh) để biết từng thư mục gốc
-(`desktop/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) dùng để làm gì, và cách
+(`omniseg/`, `tasks/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) dùng để làm gì, và cách
 đóng gói app desktop thành file chạy độc lập.
 
 ## Bước tiếp theo
@@ -189,9 +192,9 @@ Xem lát cắt NIfTI thật, các kênh MRI và mask nạp riêng, hoặc chạy
 thử nghiệm hiện tại ngay trong viewer.
 
 Xem [cách dùng và giới hạn của viewer desktop](docs/desktop.md). Đã có dựng thể tích MRI và bề mặt 3D từ mask bằng VTK.
-Nút "Chạy phân đoạn" gọi checkpoint thử nghiệm hiện tại (fold 0, đã train đủ 100/100 epoch,
-chưa đánh giá trên dữ liệu validation) qua `nnUNetv2_predict`; kết quả luôn được gắn nhãn
-là kết quả AI, không bao giờ coi là nhãn tham chiếu.
+Dropdown **Mô hình** chọn task nào đang chạy; nút "Chạy phân đoạn" gọi checkpoint của task đó qua
+`nnUNetv2_predict` (hiện chỉ có `brain_tumour_mri`, fold 0, đã train đủ 100/100 epoch, chưa đánh giá
+trên dữ liệu validation); kết quả luôn được gắn nhãn là kết quả AI, không bao giờ coi là nhãn tham chiếu.
 
 ## Kaggle training
 

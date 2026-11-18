@@ -1,1 +1,0 @@
-"""Native desktop MRI workspace."""

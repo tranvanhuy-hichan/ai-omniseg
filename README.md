@@ -1,4 +1,4 @@
-# NeuroSeg
+# OmniSeg
 
 [Tiếng Việt](README.vi.md) · **English**
 
@@ -6,11 +6,14 @@
 [![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
 
-**NeuroSeg** is an open-source research project for brain MRI tumor segmentation using **nnU-Net v2 as a dependency**.
-The goal is a reproducible path from registered MRI volumes to segmentation masks, evaluation and 3D visualization.
+**OmniSeg** is an open-source research project for medical image segmentation using **nnU-Net v2 as a dependency**.
+The goal is a reproducible path from registered medical image volumes to segmentation masks, evaluation and 3D
+visualization. It is built around multiple independent **tasks** (one per body region/modality, e.g. brain tumour
+MRI today, lung or heart CT later) rather than a single hardcoded model — see
+[project structure](docs/project-structure.md) and [tasks/README.md](tasks/README.md) for how a new model plugs in.
 This is an independent application scaffold, not a fork of nnU-Net or a clinical diagnostic system.
 
-![NeuroSeg desktop viewer showing an AI-predicted tumor mask](docs/images/desktop-viewer-segmentation.png)
+![OmniSeg desktop viewer showing an AI-predicted tumor mask](docs/images/desktop-viewer-segmentation.png)
 
 ## Current scope
 
@@ -122,7 +125,7 @@ The wrapper explicitly selects the trained fold. It does not assume all five fol
 ## Project layout
 
 See [project-structure.md](docs/project-structure.md) for what each top-level folder
-(`desktop/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) is for, and how to
+(`omniseg/`, `tasks/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) is for, and how to
 build the desktop app into a standalone executable.
 
 To store large files elsewhere, export `nnUNet_raw`, `nnUNet_preprocessed` and `nnUNet_results`
@@ -182,9 +185,10 @@ View real NIfTI slices, MRI channels and separately loaded masks, or run the
 current pilot checkpoint directly from the viewer.
 
 See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available.
-The "Run segmentation" button invokes the current pilot checkpoint (fold 0, trained the
-full 100/100 epochs, not yet evaluated on held-out data) via `nnUNetv2_predict`;
-its output is labeled as an AI result, never as a reference label.
+The **Mô hình** dropdown selects which trained task to run; the "Run segmentation" button invokes that
+task's checkpoint via `nnUNetv2_predict` (currently only `brain_tumour_mri`, fold 0, trained the full
+100/100 epochs, not yet evaluated on held-out data). Its output is labeled as an AI result, never as a
+reference label.
 
 ## Kaggle training
 

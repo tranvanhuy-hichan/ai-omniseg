@@ -1,4 +1,4 @@
-name: Build desktop app
+name: Build OmniSeg desktop app
 on:
   push:
     tags: ['v*']
@@ -12,11 +12,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: NeuroSeg-linux
+            artifact_name: OmniSeg-linux
           - os: windows-latest
-            artifact_name: NeuroSeg-windows
+            artifact_name: OmniSeg-windows
           - os: macos-latest
-            artifact_name: NeuroSeg-macos
+            artifact_name: OmniSeg-macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -29,15 +29,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libxcb-cursor0
       - run: python -m pip install -r requirements-desktop.txt pyinstaller
-      - run: python -m PyInstaller desktop/neuroseg.spec --distpath dist --workpath build --noconfirm
+      - run: python -m PyInstaller omniseg/omniseg.spec --distpath dist --workpath build --noconfirm
       - name: Zip the build
         shell: bash
         run: |
           cd dist
           if [ "$RUNNER_OS" = "Windows" ]; then
-            7z a "../${{ matrix.artifact_name }}.zip" NeuroSeg
+            7z a "../${{ matrix.artifact_name }}.zip" OmniSeg
           else
-            zip -r "../${{ matrix.artifact_name }}.zip" NeuroSeg
+            zip -r "../${{ matrix.artifact_name }}.zip" OmniSeg
           fi
       - uses: actions/upload-artifact@v4
         with:

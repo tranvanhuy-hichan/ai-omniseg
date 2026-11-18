@@ -1,7 +1,9 @@
-# Native desktop workspace
+# OmniSeg desktop workspace
 
-The initial viewer uses **PySide6 / Qt Widgets**. It opens real NIfTI volumes locally;
-there is no browser window, server, cloud upload or synthetic diagnosis.
+The viewer uses **PySide6 / Qt Widgets**. It opens real NIfTI volumes locally;
+there is no browser window, server, cloud upload or synthetic diagnosis. The **Mô hình**
+dropdown in the header lists every trained model found under `tasks/` (see
+[project-structure.md](project-structure.md)); running inference uses whichever one is selected.
 
 ```bash
 make setup-desktop
@@ -17,7 +19,7 @@ The Makefile uses `~/venvs/ai` by default. Override with `VENV=/path/to/venv`.
 - Case list from the downloaded MSD `imagesTr` folder, or a folder you select.
 - 3D and 4D NIfTI loading in a worker thread.
 - Axial, coronal and sagittal voxel planes, slice sliders and mouse-wheel scrolling.
-- Channel selection (MSD four-channel order), percentile-based window reset, manual window/level.
+- Channel selection (per the selected model's input order), percentile-based window reset, manual window/level.
 - Physical pixel aspect ratio, canonical RAS reorientation and neurological display convention.
 - Separate mask loading with strict shape/affine and label 0–3 checks.
 - Colored mask overlay, opacity control, voxel counts and physical volumes when spatial units are known.

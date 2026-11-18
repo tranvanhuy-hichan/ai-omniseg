@@ -1,0 +1,13 @@
+{
+  "id": "brain_tumour_mri",
+  "display_name": "Brain Tumour (MRI)",
+  "modality": "MRI",
+  "nnunet_dataset_id": 501,
+  "nnunet_dataset_name": "Dataset501_BrainTumour",
+  "nnunet_config": "2d",
+  "fold": 0,
+  "trainer": "nnUNetTrainer_100epochs",
+  "checkpoint": "checkpoint_final.pth",
+  "channel_names": {"0": "FLAIR", "1": "T1w", "2": "t1gd", "3": "T2w"},
+  "labels": {"background": 0, "edema": 1, "non_enhancing_tumor": 2, "enhancing_tumor": 3}
+}

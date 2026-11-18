@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 pytest.importorskip('vtkmodules')
-from desktop.surfaces import build_surfaces
+from omniseg.core.surfaces import build_surfaces
 
 
 def test_world_coordinates_include_rotation_spacing_and_origin():
@@ -28,8 +28,8 @@ def test_edge_touching_label_is_closed_and_empty_labels_are_absent():
 
 def test_mri_rendering_crop_preserves_world_alignment(tmp_path):
     import nibabel as nib
-    from desktop.volume import Volume
-    from desktop.anatomy import create_anatomy, set_anatomy_opacity
+    from omniseg.core.volume import Volume
+    from omniseg.core.anatomy import create_anatomy, set_anatomy_opacity
     data=np.zeros((10,11,12),dtype=np.float32)
     data[2:6,3:7,4:8]=np.arange(64,dtype=np.float32).reshape(4,4,4)+100
     affine=np.diag([2.,3.,4.,1.]);affine[:3,3]=[10,20,30]
