@@ -7,7 +7,9 @@
   "is_private": true,
   "enable_gpu": true,
   "enable_internet": true,
-  "dataset_sources": [],
+  "dataset_sources": [
+    "hichandut/brain-mri-2d-checkpoint-epoch43"
+  ],
   "kernel_sources": [
     "hichandut/brain-mri-prepare-cpu"
   ],
