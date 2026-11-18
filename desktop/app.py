@@ -13,7 +13,7 @@ from PySide6.QtGui import QAction, QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-    QMessageBox, QPushButton, QSlider, QSplitter, QVBoxLayout, QWidget,
+    QMessageBox, QProgressBar, QPushButton, QSlider, QSplitter, QVBoxLayout, QWidget,
     QLineEdit, QGroupBox, QScrollArea, QStackedWidget,
 )
 
@@ -81,6 +81,8 @@ QListWidget::item:selected { background: #e1f0f2; color: #076d78; border-left: 3
 QFrame#libraryFooter { background: #f3f6fa; border-radius: 6px; border: none; }
 QFrame#inferBox { background: #e5f4f1; border: 1px solid #bfe3dc; border-radius: 8px; }
 QFrame#inferBox QPushButton#primary { font-size: 14px; padding: 11px 13px; }
+QProgressBar#inferProgress { background: #bfe3dc; border: none; border-radius: 2px; }
+QProgressBar#inferProgress::chunk { background: #087e8b; border-radius: 2px; }
 QGroupBox { background: white; border: 1px solid #dce5ee; border-radius: 8px; margin-top: 12px; padding: 16px 13px 13px; font-weight: 600; font-size: 13px; color: #42566d; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; color: #1c2c3f; font-size: 13px; }
 QGroupBox QLabel, QGroupBox QCheckBox { background: white; }
@@ -419,6 +421,13 @@ class Workspace(QMainWindow):
         self.infer.clicked.connect(self.run_inference)
         self.inference_worker = None
         infer_layout.addWidget(self.infer)
+        self.infer_progress = QProgressBar(); self.infer_progress.setObjectName('inferProgress')
+        self.infer_progress.setRange(0, 0); self.infer_progress.setTextVisible(False); self.infer_progress.setFixedHeight(4)
+        self.infer_progress.hide()
+        infer_layout.addWidget(self.infer_progress)
+        self.infer_dots_timer = QTimer(self); self.infer_dots_timer.setInterval(450)
+        self.infer_dots_timer.timeout.connect(self._animate_infer_text)
+        self.infer_dots_count = 0
         infer_note = label('Viewer nghiên cứu · chưa có kết quả AI hoặc mô hình được tích hợp. Không dùng để đưa ra chẩn đoán.', 'muted')
         infer_layout.addWidget(infer_note)
         right_layout.addWidget(infer_box)
@@ -639,7 +648,9 @@ class Workspace(QMainWindow):
 
     def run_inference(self):
         if self.volume is None or self.inference_worker is not None: return
-        self.infer.setEnabled(False); self.infer.setText('⏳  Đang chạy phân đoạn…')
+        self.infer.setEnabled(False)
+        self.infer_dots_count = 0; self._animate_infer_text(); self.infer_dots_timer.start()
+        self.infer_progress.show()
         self.statusBar().showMessage('Đang chạy nnU-Net trên ảnh đang mở…')
         for panel in self.panels: panel.canvas.spinner.start()
         self.inference_worker = InferenceWorker(self.volume)
@@ -647,6 +658,10 @@ class Workspace(QMainWindow):
         self.inference_worker.failed.connect(self.inference_failed)
         self.inference_worker.finished.connect(self.inference_finished)
         self.inference_worker.start()
+
+    def _animate_infer_text(self):
+        self.infer_dots_count = (self.infer_dots_count + 1) % 4
+        self.infer.setText('⏳  Đang chạy phân đoạn' + '.' * self.infer_dots_count)
 
     def inference_done(self, mask_path):
         self.load_mask(mask_path, is_ai_result=True)
@@ -658,6 +673,7 @@ class Workspace(QMainWindow):
 
     def inference_finished(self):
         self.inference_worker = None
+        self.infer_dots_timer.stop(); self.infer_progress.hide()
         self.infer.setEnabled(self.volume is not None and self.volume.data.shape[3] == 4)
         self.infer.setText('▶  Chạy phân đoạn')
         for panel in self.panels: panel.canvas.spinner.stop()

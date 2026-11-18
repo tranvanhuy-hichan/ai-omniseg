@@ -48,6 +48,14 @@ class SurfaceViewer(QWidget):
         interactor=window.GetInteractor()
         interactor.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
         interactor.SetDesiredUpdateRate(30);interactor.SetStillUpdateRate(0.5)
+        # DesiredUpdateRate only throttles LOD-aware actors (vtkLODActor), which these
+        # plain vtkActor meshes are not, and depth peeling still re-peels every frame
+        # regardless of update rate. Drop peeling to 0 while the camera is actively
+        # being dragged (StartInteractionEvent) and restore it once it stops
+        # (EndInteractionEvent); this is what actually keeps rotation smooth with both
+        # the volume and several semi-transparent mask surfaces visible.
+        interactor.AddObserver('StartInteractionEvent', self._interaction_started)
+        interactor.AddObserver('EndInteractionEvent', self._interaction_ended)
         layout.addWidget(self.vtk,1)
         self.marker=None
         # Settings live in the existing inspector, leaving the image area free of headers.
@@ -98,6 +106,13 @@ class SurfaceViewer(QWidget):
 
     def render(self):
         if self.initialized:self.vtk.GetRenderWindow().Render()
+
+    def _interaction_started(self,*args):
+        self.renderer.SetUseDepthPeeling(False)
+
+    def _interaction_ended(self,*args):
+        self.renderer.SetUseDepthPeeling(True)
+        self.render()
 
     def set_anatomy(self,volume,channel=0):
         key=(id(volume),channel) if volume is not None else None
