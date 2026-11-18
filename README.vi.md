@@ -142,6 +142,12 @@ scripts/pipeline.sh --help
 Test dùng dữ liệu NIfTI tổng hợp để kiểm tra việc nhập dữ liệu và từ chối geometry/nhãn không hợp lệ;
 không đo chất lượng mô hình trên dữ liệu thật.
 
+## Cấu trúc thư mục
+
+Xem [project-structure.md](docs/project-structure.md) (tiếng Anh) để biết từng thư mục gốc
+(`desktop/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) dùng để làm gì, và cách
+đóng gói app desktop thành file chạy độc lập.
+
 ## Bước tiếp theo
 
 1. Chọn phiên bản dataset MRI và quy ước nhãn, chuẩn bị split theo bệnh nhân.

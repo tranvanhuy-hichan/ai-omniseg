@@ -121,17 +121,9 @@ The wrapper explicitly selects the trained fold. It does not assume all five fol
 
 ## Project layout
 
-```text
-configs/                 Example dataset schema and case manifest
-scripts/prepare_dataset.py  Validate and import NIfTI volumes
-scripts/env.sh           nnU-Net storage paths
-scripts/pipeline.sh      Plan, train and predict commands
-scripts/check_environment.py  Framework and GPU check
-tests/                   Synthetic NIfTI regression tests
-docs/                    Architecture and project roadmap
-data/                    Local source/raw/preprocessed data (ignored)
-artifacts/               Checkpoints and predictions (ignored)
-```
+See [project-structure.md](docs/project-structure.md) for what each top-level folder
+(`desktop/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) is for, and how to
+build the desktop app into a standalone executable.
 
 To store large files elsewhere, export `nnUNet_raw`, `nnUNet_preprocessed` and `nnUNet_results`
 before sourcing `scripts/env.sh`.

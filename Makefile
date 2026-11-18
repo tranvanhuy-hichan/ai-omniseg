@@ -17,7 +17,7 @@ MSD_SOURCE ?= data/source/Task01_BrainTumour
 WORKERS ?= 2
 EXTRA ?=
 
-.PHONY: help check-venv setup setup-dev init-config doctor test check prepare plan train resume predict import-msd desktop setup-desktop
+.PHONY: help check-venv setup setup-dev init-config doctor test check prepare plan train resume predict import-msd desktop setup-desktop build-desktop
 
 help:
 	@printf '%s\n' \
@@ -28,6 +28,7 @@ help:
 	  'make init-config  Tạo config local từ example, giữ file đã có' \
 	  'make setup-desktop Cài PySide6 vào venv có sẵn' \
 	  'make desktop     Mở ứng dụng desktop native' \
+	  'make build-desktop Đóng gói NeuroSeg thành app desktop (PyInstaller, dist/NeuroSeg/)' \
 	  'make doctor       Kiểm tra nnU-Net, PyTorch và CUDA' \
 	  'make test         Chạy test với dữ liệu tổng hợp' \
 	  'make check        Kiểm tra test và cú pháp shell' \
@@ -91,6 +92,10 @@ setup-desktop: check-venv
 
 desktop: check-venv
 	"$(PYTHON)" -m desktop $(EXTRA)
+
+build-desktop: check-venv
+	uv pip install --python "$(PYTHON)" pyinstaller
+	"$(PYTHON)" -m PyInstaller desktop/neuroseg.spec --distpath dist --workpath build --noconfirm
 
 .PHONY: kaggle-quota kaggle-build kaggle-prepare kaggle-train kaggle-status kaggle-output
 kaggle-quota:
