@@ -13,7 +13,7 @@ Mục tiêu ban đầu: phân đoạn vùng u não trên MRI, đánh giá theo b
 - Đã có importer NIfTI nhiều kênh, kiểm tra geometry và nhãn trước khi tạo dataset.
 - Đã có lệnh plan/preprocess, train theo fold và predict theo đúng fold đã train.
 - Repo không phân phối dataset, checkpoint hoặc kết quả đánh giá; dataset đã tải chỉ nằm trên máy cục bộ.
-- Đã có viewer desktop xem lát cắt và mask; đã có dựng bề mặt 3D từ mask; đã chạy được checkpoint đang huấn luyện ngay trong viewer.
+- Đã có viewer desktop xem lát cắt và mask; đã có dựng bề mặt 3D từ mask; đã chạy được checkpoint thử nghiệm (đã train đủ 100/100 epoch) ngay trong viewer.
 
 ## Cài đặt
 
@@ -186,11 +186,12 @@ make desktop
 ```
 
 Xem lát cắt NIfTI thật, các kênh MRI và mask nạp riêng, hoặc chạy trực tiếp checkpoint
-đang huấn luyện ngay trong viewer.
+thử nghiệm hiện tại ngay trong viewer.
 
 Xem [cách dùng và giới hạn của viewer desktop](docs/desktop.md). Đã có dựng thể tích MRI và bề mặt 3D từ mask bằng VTK.
-Nút "Chạy phân đoạn" gọi checkpoint thử nghiệm hiện tại (epoch 43/100, fold 0) qua
-`nnUNetv2_predict`; kết quả luôn được gắn nhãn là kết quả AI, không bao giờ coi là nhãn tham chiếu.
+Nút "Chạy phân đoạn" gọi checkpoint thử nghiệm hiện tại (fold 0, đã train đủ 100/100 epoch,
+chưa đánh giá trên dữ liệu validation) qua `nnUNetv2_predict`; kết quả luôn được gắn nhãn
+là kết quả AI, không bao giờ coi là nhãn tham chiếu.
 
 ## Kaggle training
 

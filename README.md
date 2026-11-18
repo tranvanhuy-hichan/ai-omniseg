@@ -179,11 +179,12 @@ make desktop
 ```
 
 View real NIfTI slices, MRI channels and separately loaded masks, or run the
-in-progress checkpoint directly from the viewer.
+current pilot checkpoint directly from the viewer.
 
 See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available.
-The "Run segmentation" button invokes the current pilot checkpoint (epoch 43/100, fold 0) via
-`nnUNetv2_predict`; its output is labeled as an AI result, never as a reference label.
+The "Run segmentation" button invokes the current pilot checkpoint (fold 0, trained the
+full 100/100 epochs, not yet evaluated on held-out data) via `nnUNetv2_predict`;
+its output is labeled as an AI result, never as a reference label.
 
 ## Kaggle training
 

@@ -21,12 +21,13 @@ from .volume import COLORS, Volume, render_slice
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = (Path(__file__).resolve().parent / 'assets').as_posix()
-# This pilot checkpoint (epoch 43/100, fold 0) is the only one trained so far;
-# point these at a newer run's dataset/fold/checkpoint when one is trained.
+# This pilot checkpoint (fold 0, trained the full 100/100 epochs) is the only
+# one trained so far; point these at a newer run's dataset/fold/checkpoint
+# when one is trained.
 INFER_DATASET_ID = 501
 INFER_FOLD = 0
 INFER_TRAINER = 'nnUNetTrainer_100epochs'
-INFER_CHECKPOINT = 'checkpoint_best.pth'
+INFER_CHECKPOINT = 'checkpoint_final.pth'
 INFER_ENV = {
     'nnUNet_raw': str(ROOT / 'data/nnUNet_raw'),
     'nnUNet_preprocessed': str(ROOT / 'data/nnUNet_preprocessed'),
@@ -417,7 +418,7 @@ class Workspace(QMainWindow):
         infer_box = QFrame(); infer_box.setObjectName('inferBox')
         infer_layout = QVBoxLayout(infer_box); infer_layout.setContentsMargins(12, 12, 12, 12); infer_layout.setSpacing(8)
         self.infer = QPushButton('▶  Chạy phân đoạn'); self.infer.setObjectName('primary'); self.infer.setEnabled(False)
-        self.infer.setToolTip('Chạy checkpoint đã train (epoch 43/100, fold 0) trên ảnh đang mở.')
+        self.infer.setToolTip('Chạy checkpoint đã train (100/100 epoch, fold 0) trên ảnh đang mở.')
         self.infer.clicked.connect(self.run_inference)
         self.inference_worker = None
         infer_layout.addWidget(self.infer)
@@ -605,7 +606,7 @@ class Workspace(QMainWindow):
         self.clear_mask()
         self.level.setEnabled(True); self.width_control.setEnabled(True)
         self.infer.setEnabled(volume.data.shape[3] == 4)
-        self.infer.setToolTip('Chạy checkpoint đã train (epoch 43/100, fold 0) trên ảnh đang mở.' if volume.data.shape[3] == 4
+        self.infer.setToolTip('Chạy checkpoint đã train (100/100 epoch, fold 0) trên ảnh đang mở.' if volume.data.shape[3] == 4
                               else 'Cần đủ 4 kênh FLAIR/T1/T1Gd/T2 (định dạng MSD Task01) để chạy checkpoint này.')
         self.reset_window()
         self.statusBar().showMessage('Đã mở MRI · Nạp mask riêng để xem nhãn · Chưa chạy AI')
@@ -690,8 +691,8 @@ class Workspace(QMainWindow):
             widget.setText(f'{amounts[index]:.2f} mL · {count:,} voxel' if amounts else f'{count:,} voxel · thiếu đơn vị để tính mL')
             toggle.blockSignals(True); toggle.setChecked(True); toggle.blockSignals(False); toggle.setEnabled(True)
         if is_ai_result:
-            source = 'Kết quả AI (checkpoint epoch 43/100, chưa train xong)'
-            note = 'Dự đoán của model đang huấn luyện. Không dùng để đưa ra chẩn đoán.'
+            source = 'Kết quả AI (checkpoint 100/100 epoch)'
+            note = 'Dự đoán của model đã huấn luyện xong fold 0. Chưa đánh giá đầy đủ; không dùng để đưa ra chẩn đoán.'
         else:
             source = 'Nhãn tham chiếu' if Path(path).parent.name == 'labelsTr' else 'Mask do người dùng nạp'
             note = 'Không phải kết quả AI được chạy trong viewer.'
