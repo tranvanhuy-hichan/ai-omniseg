@@ -1,0 +1,13 @@
+{
+  "id": "liver_tumour_ct",
+  "display_name": "Liver Tumour (CT)",
+  "modality": "CT",
+  "nnunet_dataset_id": 502,
+  "nnunet_dataset_name": "Dataset502_Liver",
+  "nnunet_config": "3d_lowres",
+  "fold": 0,
+  "trainer": "nnUNetTrainer_100epochs",
+  "checkpoint": "checkpoint_final.pth",
+  "channel_names": {"0": "CT"},
+  "labels": {"background": 0, "liver": 1, "cancer": 2}
+}

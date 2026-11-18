@@ -31,9 +31,14 @@ tasks/<task_id>/
 
 ## Adding a new model (e.g. lung CT, heart CT)
 
+`tasks/liver_tumour_ct/` is a worked example: scaffolded with its `task.json`/
+`dataset.json`/`README.md` and a Kaggle prepare/train pipeline, but **no
+checkpoint trained yet** (see [docs/dataset-liver.md](../docs/dataset-liver.md)
+for the dataset it targets). Use it as a template for the next task.
+
 1. Train the nnU-Net model as usual (see [docs/kaggle-training.md](../docs/kaggle-training.md)),
    picking a dataset id that doesn't collide with an existing task (brain tumour
-   uses `501`).
+   uses `501`, liver tumour uses `502`).
 2. Create `tasks/<new_task_id>/task.json` with that dataset's id/config/fold/
    trainer/checkpoint, channel order and labels.
 3. Copy the `dataset.json` fingerprint used for that dataset into the same

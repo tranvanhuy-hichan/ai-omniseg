@@ -20,22 +20,23 @@ This maps what each top-level folder is for. For the end-to-end data flow
 │   └── omniseg.spec             PyInstaller build spec, see "Building the desktop app" below
 │
 ├── tasks/                   One folder per trained model (body region/task); see tasks/README.md
-│   └── brain_tumour_mri/        task.json (dataset id/config/fold/checkpoint/channels/labels), dataset.json, README.md
+│   ├── brain_tumour_mri/        task.json (dataset id/config/fold/checkpoint/channels/labels), dataset.json, README.md
+│   └── liver_tumour_ct/          Same structure, scaffolded; no checkpoint trained yet (see docs/dataset-liver.md)
 │       (adding a new model — e.g. lung CT, heart CT — only needs a new tasks/<id>/ folder, no app code change)
 │
 ├── scripts/                 Shell/CLI glue around nnU-Net, independent of the desktop app
 │   ├── env.sh                   Exports nnUNet_raw/preprocessed/results defaults
 │   ├── pipeline.sh               plan / train / predict wrapper around nnUNetv2_* commands
-│   ├── import_msd.py             Verifies and converts the MSD Task01_BrainTumour archive
+│   ├── import_msd.py             Verifies and converts an MSD archive for a given --task (tasks/<id>/)
 │   ├── prepare_dataset.py         Validates a custom dataset manifest before import
 │   └── check_environment.py       Reports installed nnU-Net/PyTorch/CUDA versions
 │
-├── kaggle/                  Notebook sources for the two-stage Kaggle training pilot
-│   ├── prepare/                  CPU notebook: download, verify, preprocess, 5-fold split
-│   ├── train/                     GPU notebook: time-boxed nnU-Net training, resumable
-│   ├── prepare_cpu.py             Source written into the prepare notebook
-│   ├── train_budget.py            Source written into the train notebook (epoch-boundary budget)
-│   ├── build_notebooks.py         Regenerates notebook JSON from the .py sources above
+├── kaggle/                  Notebook sources for the two-stage Kaggle training pilot, per task
+│   ├── prepare/, train/          Brain tumour (task 501) notebook sources
+│   ├── liver_prepare/, liver_train/  Liver tumour (task 502) notebook sources
+│   ├── prepare_cpu.py, train_budget.py          Brain tumour .py sources written into its notebooks
+│   ├── liver_prepare_cpu.py, liver_train_budget.py  Liver tumour .py sources (3d_lowres, ~28.9GB archive)
+│   ├── build_notebooks.py         Regenerates all notebook JSON from the .py sources above
 │   └── launch_after_prepare.py    Starts the train notebook once prepare finishes
 │
 ├── configs/                 Dataset/case manifest examples and local overrides (*.local.json is gitignored)

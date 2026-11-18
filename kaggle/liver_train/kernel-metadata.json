@@ -1,0 +1,16 @@
+{
+  "id": "hichandut/liver-ct-3dlowres-100ep",
+  "title": "Liver Ct 3Dlowres 100Ep",
+  "code_file": "train.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "kernel_sources": [
+    "hichandut/liver-ct-prepare-cpu"
+  ],
+  "competition_sources": [],
+  "machine_shape": "NvidiaL4"
+}

@@ -1,0 +1,6 @@
+{
+  "dataset_name": "Dataset502_Liver",
+  "channel_names": {"0": "CT"},
+  "labels": {"background": 0, "liver": 1, "cancer": 2},
+  "file_ending": ".nii.gz"
+}

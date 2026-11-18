@@ -1,4 +1,8 @@
-# Kaggle pilot: 2D, fold 0, 100 epochs
+# Kaggle pilot: Brain Tumour, 2D, fold 0, 100 epochs
+
+See [Liver Tumour (3d_lowres)](#kaggle-pilot-liver-tumour-3d_lowres-fold-0-100-epochs) below
+for the second task's notebook pipeline — same two-stage pattern, different
+config and archive size.
 
 ## Budget and stages
 
@@ -65,3 +69,32 @@ make kaggle-output
 
 No real model performance or training-time benchmark is claimed until the job produces measurements.
 Kaggle notebooks are private. Dataset attribution and CC-BY-SA 4.0 remain attached to CPU output metadata.
+
+## Kaggle pilot: Liver Tumour, 3d_lowres, fold 0, 100 epochs
+
+Second task (`tasks/liver_tumour_ct/`, dataset id `502`). Same two-stage pattern as
+brain tumour, with three differences worth tracking separately:
+
+1. **Archive size**: Task03_Liver is ~28.9 GB vs. brain tumour's ~7.6 GB. See
+   [docs/dataset-liver.md](dataset-liver.md) for the disk-space risk on Kaggle's
+   CPU notebook — this has not been run yet, so the disk budget is unverified.
+2. **Configuration**: `3d_lowres` instead of `2d` (see rationale in
+   docs/dataset-liver.md). 3D training is heavier per epoch than the brain
+   tumour 2D pilot; expect more Kaggle sessions to complete 100 epochs.
+3. **Case count**: 131 labeled cases (vs. 484), so the preprocessing script
+   checks for 131 cases instead of 484.
+
+Commands mirror the brain tumour ones, using the `-liver` Makefile targets:
+
+```bash
+make kaggle-build            # regenerates both brain and liver notebooks
+make kaggle-prepare-liver    # submits CPU preprocessing; do not repeat while a run is active
+make kaggle-status-liver
+make kaggle-train-liver
+make kaggle-output-liver
+```
+
+`kaggle/liver_prepare_cpu.py` and `kaggle/liver_train_budget.py` are the sources
+written into `kaggle/liver_prepare/prepare.ipynb` and `kaggle/liver_train/train.ipynb`
+by `make kaggle-build`. No checkpoint has been trained for this task yet —
+this section describes the pipeline that exists, not a completed run.

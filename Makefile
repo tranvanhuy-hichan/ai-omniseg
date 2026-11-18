@@ -34,7 +34,7 @@ help:
 	  'make doctor       Kiểm tra nnU-Net, PyTorch và CUDA' \
 	  'make test         Chạy test với dữ liệu tổng hợp' \
 	  'make check        Kiểm tra test và cú pháp shell' \
-	  'make import-msd   Nhập dataset MSD Task01 4D đã tải và giải nén' \
+	  'make import-msd   Nhập dataset MSD 4D đã tải và giải nén (TASK=brain_tumour_mri|liver_tumour_ct)' \
 	  'make prepare      Kiểm tra và nhập dataset từ config local' \
 	  'make plan         Plan và preprocess dataset' \
 	  'make train        Train một fold đầy đủ (không phải smoke test)' \
@@ -90,7 +90,7 @@ predict: check-venv
 	bash scripts/pipeline.sh predict "$(DATASET)" "$(CONFIG)" "$(FOLD)" "$(INPUT)" "$(OUTPUT)" $(EXTRA)
 
 import-msd: check-venv
-	"$(PYTHON)" scripts/import_msd.py --source "$(MSD_SOURCE)" --dataset-id "$(DATASET)" --workers "$(WORKERS)"
+	"$(PYTHON)" scripts/import_msd.py --task "$(TASK)" --source "$(MSD_SOURCE)" --dataset-id "$(DATASET)" --workers "$(WORKERS)"
 
 setup-desktop: check-venv
 	uv pip install --python "$(PYTHON)" -r requirements-desktop.txt
@@ -103,6 +103,7 @@ build-desktop: check-venv
 	"$(PYTHON)" -m PyInstaller omniseg/omniseg.spec --distpath dist --workpath build --noconfirm
 
 .PHONY: kaggle-quota kaggle-build kaggle-prepare kaggle-train kaggle-status kaggle-output
+.PHONY: kaggle-prepare-liver kaggle-train-liver kaggle-status-liver kaggle-output-liver
 kaggle-quota:
 	kaggle quota
 
@@ -121,3 +122,18 @@ kaggle-status:
 
 kaggle-output:
 	kaggle kernels output hichandut/brain-mri-2d-100ep -p artifacts/kaggle-output
+
+# Liver CT (task thứ 2, tasks/liver_tumour_ct); archive gốc ~28.9GB, xem cảnh
+# báo dung lượng đĩa Kaggle trong docs/dataset-liver.md trước khi chạy.
+kaggle-prepare-liver:
+	kaggle kernels push -p kaggle/liver_prepare -t 14400
+
+kaggle-train-liver:
+	kaggle kernels push -p kaggle/liver_train -t 10800
+
+kaggle-status-liver:
+	kaggle kernels status hichandut/liver-ct-prepare-cpu
+	kaggle kernels status hichandut/liver-ct-3dlowres-100ep
+
+kaggle-output-liver:
+	kaggle kernels output hichandut/liver-ct-3dlowres-100ep -p artifacts/kaggle-output-liver
