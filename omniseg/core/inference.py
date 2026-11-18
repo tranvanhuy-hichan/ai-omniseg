@@ -40,5 +40,16 @@ def build_predict_env(task, root=REPO_ROOT):
     return env
 
 
+def checkpoint_path(task, root=REPO_ROOT):
+    """Where nnUNetv2_predict looks for task's checkpoint (caller's nnUNet_results wins)."""
+    results = Path(os.environ.get('nnUNet_results') or nnunet_env(root)['nnUNet_results'])
+    run = f"{task['trainer']}__nnUNetPlans__{task['nnunet_config']}"
+    return results / task['nnunet_dataset_name'] / run / f"fold_{task['fold']}" / task['checkpoint']
+
+
+def checkpoint_exists(task, root=REPO_ROOT):
+    return checkpoint_path(task, root).is_file()
+
+
 def channel_count(task):
     return len(task['channel_names'])

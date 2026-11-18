@@ -13,11 +13,11 @@ from PySide6.QtGui import QAction, QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-    QMessageBox, QProgressBar, QPushButton, QSlider, QSplitter, QVBoxLayout, QWidget,
+    QMenu, QMessageBox, QProgressBar, QPushButton, QSlider, QSplitter, QVBoxLayout, QWidget,
     QLineEdit, QGroupBox, QScrollArea, QStackedWidget,
 )
 
-from .core.volume import COLORS, Volume, render_slice
+from .core.volume import Volume, color_table, render_slice
 from .core import inference
 from . import registry
 
@@ -55,6 +55,11 @@ QPushButton:hover { background: #edf5f8; border-color: #92bac6; }
 QPushButton#primary { background: #087e8b; color: white; border: 1px solid #087e8b; }
 QPushButton#primary:hover { background: #066b76; }
 QPushButton:disabled { background: #e9eef4; border-color: #dce4ed; color: #98a5b6; }
+QPushButton#iconButton { background: white; border: 1px solid #d7e1ec; border-radius: 6px; padding: 0; }
+QPushButton#iconButton:hover { background: #edf5f8; border-color: #92bac6; }
+QPushButton#iconButton:pressed { background: #dcebf0; }
+QPushButton#iconButton:focus { border-color: #45a6a8; }
+QPushButton#iconButton:disabled { background: #e9eef4; border-color: #dce4ed; }
 QLineEdit, QComboBox, QDoubleSpinBox { background: white; border: 1px solid #d7e1ec; padding: 5px 7px; border-radius: 6px; selection-background-color: #cdeae8; }
 QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus { border-color: #45a6a8; }
 QComboBox:hover, QDoubleSpinBox:hover { border-color: #b6cad8; }
@@ -101,6 +106,15 @@ def label(text, name=None):
     return widget
 
 
+class IconButton(QPushButton):
+    """Icon-only button that, like a native one, also activates on Enter (Space already does)."""
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.click()
+        else:
+            super().keyPressEvent(event)
+
+
 class Spinner(QWidget):
     """Small indeterminate spinner overlaid while a volume/mask loads in the background."""
 
@@ -145,13 +159,13 @@ class Loader(QThread):
     loaded = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, path, volume=None):
+    def __init__(self, path, volume=None, labels=(1, 2, 3)):
         super().__init__()
-        self.path, self.volume = path, volume
+        self.path, self.volume, self.labels = path, volume, labels
 
     def run(self):
         try:
-            self.loaded.emit(self.volume.load_mask(self.path) if self.volume else Volume.load(self.path))
+            self.loaded.emit(self.volume.load_mask(self.path, self.labels) if self.volume else Volume.load(self.path))
         except Exception as error:
             self.failed.emit(str(error))
 
@@ -211,7 +225,7 @@ class SliceCanvas(QWidget):
         painter.fillRect(self.rect(), QColor('#101c2a'))
         if self.rgb is None:
             painter.setPen(QColor('#718296'))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'Mở MRI để xem lát cắt')
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'Mở ảnh để xem lát cắt')
             return
         data = self.rgb
         image = QImage(data.data, data.shape[1], data.shape[0], data.strides[0], QImage.Format.Format_RGB888)
@@ -317,10 +331,8 @@ class Workspace(QMainWindow):
             self.model_choice.setEnabled(False)
         self.model_choice.currentIndexChanged.connect(self.model_changed)
         bar.addWidget(self.model_choice); bar.addSpacing(12)
-        bar.addWidget(label('Viewer nghiên cứu', 'muted')); bar.addSpacing(12)
-        self.open_button = QPushButton('＋  Mở MRI'); self.open_button.setObjectName('primary'); self.open_button.clicked.connect(self.open_file)
         self.mask_button = QPushButton('Nạp mask'); self.mask_button.clicked.connect(self.open_mask); self.mask_button.setEnabled(False)
-        bar.addWidget(self.mask_button); bar.addWidget(self.open_button)
+        bar.addWidget(self.mask_button)
         root.addWidget(header)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter = splitter
@@ -335,8 +347,20 @@ class Workspace(QMainWindow):
         self.case_count = label('0 ca', 'badge'); self.case_count.setObjectName('badge'); title_row.addWidget(self.case_count)
         header_box.addLayout(title_row)
         left_layout.addLayout(header_box)
-        self.search = QLineEdit(); self.search.setPlaceholderText('🔍  Tìm theo tên file…'); self.search.textChanged.connect(self.filter_cases); left_layout.addWidget(self.search)
-        folder = QPushButton('📁  Chọn thư mục MRI'); folder.setObjectName('primary'); folder.clicked.connect(self.open_folder); left_layout.addWidget(folder)
+        search_row = QHBoxLayout(); search_row.setContentsMargins(0, 0, 0, 0); search_row.setSpacing(8)
+        self.search = QLineEdit(); self.search.setPlaceholderText('Tìm theo tên file…'); self.search.textChanged.connect(self.filter_cases)
+        self.search.addAction(QIcon(f'{ASSETS}/search.svg'), QLineEdit.ActionPosition.LeadingPosition)
+        self.open_button = IconButton(); self.open_button.setObjectName('iconButton')
+        self.open_button.setIcon(QIcon(f'{ASSETS}/folder_open.svg')); self.open_button.setIconSize(QSize(18, 18))
+        self.open_button.setToolTip('Mở ảnh hoặc thư mục (NIfTI)'); self.open_button.setAccessibleName('Mở ảnh hoặc thư mục')
+        self.open_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_menu = QMenu(self.open_button)
+        open_menu.addAction(QIcon(f'{ASSETS}/file_open.svg'), 'Mở một ảnh…', self.open_file)
+        open_menu.addAction(QIcon(f'{ASSETS}/folder_open.svg'), 'Mở thư mục ảnh…', self.open_folder)
+        self.open_button.clicked.connect(lambda: open_menu.exec(self.open_button.mapToGlobal(self.open_button.rect().bottomLeft())))
+        height = self.search.sizeHint().height(); self.open_button.setFixedSize(height, height)
+        search_row.addWidget(self.search, 1); search_row.addWidget(self.open_button)
+        left_layout.addLayout(search_row)
         self.cases = QListWidget(); self.cases.itemActivated.connect(self.open_item); self.cases.itemClicked.connect(self.open_item); left_layout.addWidget(self.cases, 1)
         footer_note = QFrame(); footer_note.setObjectName('libraryFooter')
         footer_note_layout = QVBoxLayout(footer_note); footer_note_layout.setContentsMargins(10, 8, 10, 8)
@@ -345,7 +369,7 @@ class Workspace(QMainWindow):
         splitter.addWidget(left)
         middle = QWidget(); mid = QVBoxLayout(middle); mid.setContentsMargins(10, 4, 10, 8); mid.setSpacing(6)
         self.workspace_layout = mid
-        self.case_title = label('Chưa mở MRI')
+        self.case_title = label('Chưa mở ảnh')
         self.case_title.setStyleSheet('font-size: 15px; font-weight: 700;')
         self.case_title.setWordWrap(False)
         self.case_subtitle = label(''); self.case_subtitle.hide()
@@ -381,23 +405,10 @@ class Workspace(QMainWindow):
         grid.addWidget(self.panels[1], 0, 1)
         grid.addWidget(self.panels[2], 1, 1)
         overview = QGroupBox('Kết quả phân đoạn'); info = QVBoxLayout(overview); info.setSpacing(10)
-        info.addWidget(label('VÙNG TỔN THƯƠNG · MSD TASK01', 'eyebrow'))
-        self.region_labels = []
-        self.region_toggles = []
-        for name, color in zip(['Phù nề', 'U không tăng tương phản', 'U tăng tương phản'], COLORS[1:]):
-            row_widget = QWidget(); row_layout = QHBoxLayout(row_widget); row_layout.setContentsMargins(0, 0, 0, 0); row_layout.setSpacing(0)
-            dot = label('●'); dot.setStyleSheet(f'color: rgb({color[0]}, {color[1]}, {color[2]}); font-size: 15px;'); dot.setFixedWidth(16)
-            text_widget = QWidget(); text_layout = QVBoxLayout(text_widget); text_layout.setContentsMargins(6, 0, 0, 0); text_layout.setSpacing(1)
-            name_label = label(name); name_label.setStyleSheet('font-weight: 600;')
-            amount = label('Chưa có mask', 'muted')
-            text_layout.addWidget(name_label); text_layout.addWidget(amount)
-            toggle = QCheckBox(); toggle.setChecked(True); toggle.setEnabled(False)
-            toggle.toggled.connect(self.refresh)
-            row_layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignTop); row_layout.addWidget(text_widget, 1)
-            row_layout.addWidget(toggle, 0, Qt.AlignmentFlag.AlignVCenter)
-            self.region_labels.append(amount)
-            self.region_toggles.append(toggle)
-            info.addWidget(row_widget)
+        self.region_title = label('VÙNG TỔN THƯƠNG', 'eyebrow'); info.addWidget(self.region_title)
+        self.region_rows = QVBoxLayout(); self.region_rows.setSpacing(10); info.addLayout(self.region_rows)
+        self.region_labels, self.region_toggles, self.label_ids, self.label_colors = [], [], [], None
+        self.set_region_rows()
         self.mask_source = label('Chưa nạp mask. Màu phủ chỉ xuất hiện khi có nhãn tham chiếu hoặc mask bạn mở.', 'muted')
         self.mask_source.setStyleSheet('background: #f3f6fa; border-radius: 4px; padding: 8px; color: #556377; font-size: 12px;')
         info.addWidget(self.mask_source)
@@ -420,6 +431,8 @@ class Workspace(QMainWindow):
         self.infer.clicked.connect(self.run_inference)
         self.inference_worker = None
         infer_layout.addWidget(self.infer)
+        self.infer_reason = label('', 'muted'); self.infer_reason.setWordWrap(True); self.infer_reason.hide()
+        infer_layout.addWidget(self.infer_reason)
         self.infer_progress = QProgressBar(); self.infer_progress.setObjectName('inferProgress')
         self.infer_progress.setRange(0, 0); self.infer_progress.setTextVisible(False); self.infer_progress.setFixedHeight(4)
         self.infer_progress.hide()
@@ -427,10 +440,10 @@ class Workspace(QMainWindow):
         self.infer_dots_timer = QTimer(self); self.infer_dots_timer.setInterval(450)
         self.infer_dots_timer.timeout.connect(self._animate_infer_text)
         self.infer_dots_count = 0
-        infer_note = label('Viewer nghiên cứu · chưa có kết quả AI hoặc mô hình được tích hợp. Không dùng để đưa ra chẩn đoán.', 'muted')
+        infer_note = label('Kết quả do mô hình AI dự đoán, chưa được kiểm định lâm sàng. Không dùng để đưa ra chẩn đoán.', 'muted')
         infer_layout.addWidget(infer_note)
         right_layout.addWidget(infer_box)
-        display = QGroupBox('Hiển thị MRI'); self.slice_display_group = display; display_layout = QVBoxLayout(display); display_layout.setSpacing(6)
+        display = QGroupBox('Hiển thị ảnh'); self.slice_display_group = display; display_layout = QVBoxLayout(display); display_layout.setSpacing(6)
         windowing = QGridLayout(); windowing.setHorizontalSpacing(10); windowing.setVerticalSpacing(2)
         self.level = QDoubleSpinBox(); self.width_control = QDoubleSpinBox()
         for control in (self.level, self.width_control):
@@ -458,23 +471,71 @@ class Workspace(QMainWindow):
         right_layout.addWidget(mask_group)
         right_layout.addWidget(overview)
         details = QGroupBox('Thông tin thể tích'); details_layout = QVBoxLayout(details)
-        self.details = label('Chưa mở MRI.', 'muted'); self.details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); details_layout.addWidget(self.details); right_layout.addWidget(details)
+        self.details = label('Chưa mở ảnh.', 'muted'); self.details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); details_layout.addWidget(self.details); right_layout.addWidget(details)
         right_layout.addStretch()
         splitter.addWidget(right_scroll)
         splitter.setStretchFactor(0, 0); splitter.setStretchFactor(1, 1); splitter.setStretchFactor(2, 0)
         splitter.setSizes([220, 900, 360]); splitter.setCollapsible(0, False); splitter.setCollapsible(1, False); splitter.setCollapsible(2, False)
         self.statusBar().showMessage('Sẵn sàng · Mở NIfTI 3D/4D · Định hướng neurological sau khi chuyển về RAS')
-        action = QAction('Mở MRI', self); action.setShortcut('Ctrl+O'); action.triggered.connect(self.open_file); self.addAction(action)
+        self.update_infer_state()
+        action = QAction('Mở ảnh', self); action.setShortcut('Ctrl+O'); action.triggered.connect(self.open_file); self.addAction(action)
         escape = QAction('Trở lại ba mặt phẳng', self); escape.setShortcut('Esc'); escape.triggered.connect(lambda: self.set_focus(None)); self.addAction(escape)
-        default = ROOT / 'data/source/Task01_BrainTumour/imagesTr'
+        default = ROOT / 'data/test_sets' / (self.current_task['id'] if self.current_task else '') / 'images'
         if default.is_dir(): self.populate(default)
+
+    def set_region_rows(self):
+        """(Re)build the region rows, colors and 3D switches from the selected task's labels."""
+        task = self.current_task
+        entries = registry.label_entries(task) if task else []
+        while self.region_rows.count():
+            widget = self.region_rows.takeAt(0).widget()
+            if widget is not None: widget.hide(); widget.setParent(None); widget.deleteLater()
+        self.region_labels, self.region_toggles = [], []
+        self.label_ids = [label_id for label_id, _, _ in entries]
+        self.label_colors = color_table(entries)
+        name = task.get('display_name', task['id']) if task else 'chưa có mô hình'
+        self.region_title.setText(f'VÙNG TỔN THƯƠNG · {name.upper()}')
+        for _, text, color in entries:
+            row_widget = QWidget(); row_layout = QHBoxLayout(row_widget); row_layout.setContentsMargins(0, 0, 0, 0); row_layout.setSpacing(0)
+            dot = label('●'); dot.setStyleSheet(f'color: rgb({color[0]}, {color[1]}, {color[2]}); font-size: 15px;'); dot.setFixedWidth(16)
+            text_widget = QWidget(); text_layout = QVBoxLayout(text_widget); text_layout.setContentsMargins(6, 0, 0, 0); text_layout.setSpacing(1)
+            name_label = label(text); name_label.setStyleSheet('font-weight: 600;')
+            amount = label('Chưa có mask', 'muted')
+            text_layout.addWidget(name_label); text_layout.addWidget(amount)
+            toggle = QCheckBox(); toggle.setChecked(True); toggle.setEnabled(False)
+            toggle.toggled.connect(self.refresh)
+            row_layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignTop); row_layout.addWidget(text_widget, 1)
+            row_layout.addWidget(toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+            self.region_labels.append(amount)
+            self.region_toggles.append(toggle)
+            self.region_rows.addWidget(row_widget)
+        if self.surface_viewer is not None: self.surface_viewer.set_labels(entries)
+
+    def infer_block_reason(self):
+        task = self.current_task
+        if task is None: return 'Chưa có mô hình nào để chạy.'
+        if not inference.checkpoint_exists(task):
+            return 'Chưa có checkpoint cho model này. Cần train xong và đặt checkpoint vào artifacts/nnUNet_results.'
+        if self.volume is not None and self.volume.data.shape[3] != inference.channel_count(task):
+            return f'Cần đủ {inference.channel_count(task)} kênh ảnh đầu vào để chạy mô hình đang chọn.'
+        return None
+
+    def update_infer_state(self):
+        reason = self.infer_block_reason()
+        self.infer.setEnabled(reason is None and self.volume is not None and self.inference_worker is None)
+        self.infer_reason.setText(reason or ''); self.infer_reason.setVisible(bool(reason))
+        self.infer.setToolTip(reason or ('Chạy checkpoint đã train cho mô hình đang chọn trên ảnh đang mở.' if self.volume is not None
+                                         else 'Mở ảnh để chạy mô hình.'))
 
     def model_changed(self, index):
         task = self.model_choice.itemData(index)
-        if task is not None:
-            self.current_task = task
-            if self.volume is not None:
-                self.infer.setEnabled(self.volume.data.shape[3] == inference.channel_count(task))
+        if task is None: return
+        self.current_task = task
+        self.set_region_rows()
+        if self.mask is not None:
+            self.clear_mask()
+            self.statusBar().showMessage('Đã đổi mô hình · Bỏ mask cũ vì mỗi mô hình có bộ nhãn riêng')
+        self.update_infer_state()
 
     def toggle_focus(self, axis):
         self.set_focus(None if self.focus_axis == axis else axis)
@@ -517,7 +578,7 @@ class Workspace(QMainWindow):
         if self.surface_viewer is None:
             try:
                 from .view3d import SurfaceViewer
-                self.surface_viewer = SurfaceViewer()
+                self.surface_viewer = SurfaceViewer(registry.label_entries(self.current_task) if self.current_task else [])
                 self.viewer_stack.addWidget(self.surface_viewer)
                 self.inspector_layout.insertWidget(1,self.surface_viewer.settings)
                 self.update_3d_input()
@@ -557,12 +618,12 @@ class Workspace(QMainWindow):
             item = self.cases.item(i); item.setHidden(query.lower() not in item.text().lower())
 
     def open_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, 'Chọn thư mục MRI', str(ROOT / 'data'))
+        folder = QFileDialog.getExistingDirectory(self, 'Chọn thư mục ảnh', str(ROOT / 'data'))
         if folder: self.populate(folder)
 
     def open_file(self):
         if self.loading: return
-        path, _ = QFileDialog.getOpenFileName(self, 'Mở MRI NIfTI', str(ROOT / 'data'), 'NIfTI (*.nii.gz *.nii)')
+        path, _ = QFileDialog.getOpenFileName(self, 'Mở ảnh NIfTI', str(ROOT / 'data'), 'NIfTI (*.nii.gz *.nii)')
         if path: self.load_volume(path)
 
     def open_item(self, item):
@@ -577,7 +638,7 @@ class Workspace(QMainWindow):
         self.statusBar().showMessage('Đang đọc thể tích…')
         self.setCursor(Qt.CursorShape.BusyCursor)
         for panel in self.panels: panel.canvas.spinner.start()
-        self.worker = Loader(path, volume)
+        self.worker = Loader(path, volume, tuple(self.label_ids))
         self.worker.loaded.connect(callback)
         self.worker.failed.connect(self.load_error)
         self.worker.finished.connect(self.finish_loading)
@@ -610,14 +671,9 @@ class Workspace(QMainWindow):
             panel.prev_button.setEnabled(True); panel.next_button.setEnabled(True)
         self.clear_mask()
         self.level.setEnabled(True); self.width_control.setEnabled(True)
-        expected_channels = inference.channel_count(self.current_task) if self.current_task else None
-        matches = expected_channels is not None and volume.data.shape[3] == expected_channels
-        self.infer.setEnabled(matches)
-        self.infer.setToolTip('Chạy checkpoint đã train cho mô hình đang chọn trên ảnh đang mở.' if matches
-                              else f'Cần đủ {expected_channels} kênh ảnh đầu vào để chạy mô hình đang chọn.' if expected_channels
-                              else 'Chưa có mô hình nào để chạy.')
+        self.update_infer_state()
         self.reset_window()
-        self.statusBar().showMessage('Đã mở MRI · Nạp mask riêng để xem nhãn · Chưa chạy AI')
+        self.statusBar().showMessage('Đã mở ảnh · Nạp mask riêng để xem nhãn · Chưa chạy AI')
 
     def channel_changed(self, index):
         if self.volume is not None and index >= 0:
@@ -640,11 +696,11 @@ class Workspace(QMainWindow):
         channel = self.channel.currentIndex()
         if channel < 0: return
         width, center = self.width_control.value(), self.level.value()
-        visible_labels = tuple(i+1 for i, toggle in enumerate(self.region_toggles) if toggle.isChecked())
+        visible_labels = tuple(label_id for label_id, toggle in zip(self.label_ids, self.region_toggles) if toggle.isChecked())
         for panel in (panels if panels is not None else self.panels):
             index = panel.slider.value()
             panel.counter.setText(f'{index+1} / {self.volume.data.shape[panel.axis]}')
-            panel.canvas.rgb = render_slice(self.volume, panel.axis, index, channel, (center-width/2, center+width/2), self.mask if self.show_mask.isChecked() else None, self.opacity.value()/100, visible_labels)
+            panel.canvas.rgb = render_slice(self.volume, panel.axis, index, channel, (center-width/2, center+width/2), self.mask if self.show_mask.isChecked() else None, self.opacity.value()/100, visible_labels, self.label_colors)
             remaining = [i for i in range(3) if i != panel.axis]
             panel.canvas.spacing = tuple(self.volume.spacing[remaining])
             panel.canvas.update()
@@ -652,11 +708,13 @@ class Workspace(QMainWindow):
     def open_mask(self):
         if self.volume is None or self.loading: return
         initial = self.volume.path.parent.parent / 'labelsTr'
-        path, _ = QFileDialog.getOpenFileName(self, 'Mở mask cùng ca (nhãn 0–3)', str(initial), 'NIfTI (*.nii.gz *.nii)')
+        label_ids = (self.current_task or {}).get('labels', {}).values()
+        label_range = f'nhãn 0–{max(label_ids)}' if label_ids else 'nhãn'
+        path, _ = QFileDialog.getOpenFileName(self, f'Mở mask cùng ca ({label_range})', str(initial), 'NIfTI (*.nii.gz *.nii)')
         if path: self.load_mask(path)
 
     def run_inference(self):
-        if self.volume is None or self.inference_worker is not None or self.current_task is None: return
+        if self.volume is None or self.inference_worker is not None or self.infer_block_reason(): return
         self.infer.setEnabled(False)
         self.infer_dots_count = 0; self._animate_infer_text(); self.infer_dots_timer.start()
         self.infer_progress.show()
@@ -683,8 +741,7 @@ class Workspace(QMainWindow):
     def inference_finished(self):
         self.inference_worker = None
         self.infer_dots_timer.stop(); self.infer_progress.hide()
-        expected_channels = inference.channel_count(self.current_task) if self.current_task else None
-        self.infer.setEnabled(self.volume is not None and expected_channels is not None and self.volume.data.shape[3] == expected_channels)
+        self.update_infer_state()
         self.infer.setText('▶  Chạy phân đoạn')
         for panel in self.panels: panel.canvas.spinner.stop()
 
@@ -694,9 +751,9 @@ class Workspace(QMainWindow):
     def set_mask(self, mask, path, is_ai_result=False):
         self.mask, self.mask_path = mask, Path(path)
         self.show_mask.setEnabled(True); self.show_mask.setChecked(True); self.clear_mask_button.setEnabled(True)
-        amounts = self.volume.label_volumes(mask)
-        for index, (widget, toggle) in enumerate(zip(self.region_labels, self.region_toggles)):
-            count = np.count_nonzero(mask == index+1)
+        amounts = self.volume.label_volumes(mask, tuple(self.label_ids))
+        for index, (label_id, widget, toggle) in enumerate(zip(self.label_ids, self.region_labels, self.region_toggles)):
+            count = np.count_nonzero(mask == label_id)
             widget.setText(f'{amounts[index]:.2f} mL · {count:,} voxel' if amounts else f'{count:,} voxel · thiếu đơn vị để tính mL')
             toggle.blockSignals(True); toggle.setChecked(True); toggle.blockSignals(False); toggle.setEnabled(True)
         if is_ai_result:
@@ -733,16 +790,26 @@ class Workspace(QMainWindow):
             event.accept()
 
 
+def portal_available():
+    try:
+        from PySide6.QtDBus import QDBusConnection
+        bus = QDBusConnection.sessionBus()
+        return bus.isConnected() and bus.interface().isServiceRegistered('org.freedesktop.portal.Desktop').value()
+    except Exception:
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description='OmniSeg native desktop viewer')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--mask', type=Path)
     parser.add_argument('--view', choices=['slices','3d'], default='slices')
     args = parser.parse_args()
-    # Use the app's Qt/Fusion theme instead of loading optional GTK theme plugins.
-    # Some GNOME installations have incompatible GSettings schemas.
+    # Never load the GTK theme plugin: some GNOME installs have incompatible GSettings
+    # schemas. The xdg-desktop-portal theme gives native file dialogs over D-Bus instead;
+    # fall back to Qt's own dialogs when no portal is running.
     if sys.platform.startswith('linux') and not os.environ.get('QT_QPA_PLATFORMTHEME'):
-        os.environ['QT_QPA_PLATFORMTHEME'] = 'generic'
+        os.environ['QT_QPA_PLATFORMTHEME'] = 'xdgdesktopportal' if portal_available() else 'generic'
     # VTK's native Qt interactor embeds an X11 OpenGL window on Linux.
     # Use XWayland on GNOME/Wayland; preserve explicit offscreen/test settings.
     if sys.platform.startswith('linux') and not os.environ.get('QT_QPA_PLATFORM'):

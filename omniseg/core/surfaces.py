@@ -2,7 +2,7 @@
 import numpy as np
 
 
-def build_surfaces(mask, affine):
+def build_surfaces(mask, affine, labels=(1, 2, 3)):
     from vtkmodules.util.numpy_support import numpy_to_vtk
     from vtkmodules.vtkCommonMath import vtkMatrix4x4
     from vtkmodules.vtkCommonDataModel import vtkImageData, vtkPolyData
@@ -12,8 +12,9 @@ def build_surfaces(mask, affine):
 
     values = np.asarray(mask)
     affine = np.asarray(affine, dtype=float)
-    if values.ndim != 3 or not np.isin(values, [0, 1, 2, 3]).all():
-        raise ValueError('Mask 3D phải có nhãn 0–3.')
+    allowed = [0, *labels]
+    if values.ndim != 3 or not np.isin(values, allowed).all():
+        raise ValueError(f'Mask 3D chỉ được có nhãn {allowed}.')
     if affine.shape != (4, 4) or not np.isfinite(affine).all() or abs(np.linalg.det(affine[:3,:3])) < 1e-12:
         raise ValueError('Affine không hợp lệ.')
     # Pad background to close surfaces even when foreground touches an image edge.
@@ -29,7 +30,7 @@ def build_surfaces(mask, affine):
         for column in range(4): matrix.SetElement(row,column,float(affine[row,column]))
     transform = vtkTransform(); transform.SetMatrix(matrix)
     result = {}
-    for label in (1, 2, 3):
+    for label in labels:
         if not np.any(values == label): continue
         contour = vtkDiscreteFlyingEdges3D()
         contour.SetInputData(image); contour.SetValue(0, label)

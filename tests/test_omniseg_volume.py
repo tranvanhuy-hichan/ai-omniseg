@@ -45,3 +45,25 @@ def test_canonical_orientation_and_display(tmp_path):
     assert nib.aff2axcodes(volume.image.affine) == ('R','A','S')
     assert np.array_equal(volume.data[...,0], data[::-1])
     assert np.array_equal(plane(data, 2, 0), np.flipud(data[:,:,0].T))
+
+
+def test_mask_labels_are_limited_to_the_selected_models_labels(tmp_path):
+    volume = make_volume(tmp_path)
+    mask = np.zeros((4,5,6), dtype=np.uint8); mask[1,1,1] = 3
+    path = tmp_path / 'mask.nii.gz'
+    nib.save(nib.Nifti1Image(mask, volume.image.affine), path)
+    assert volume.load_mask(path)[1,1,1] == 3
+    with pytest.raises(ValueError, match='nhãn'):
+        volume.load_mask(path, labels=(1, 2))
+
+
+def test_overlay_uses_custom_colors_and_ignores_hidden_labels(tmp_path):
+    from omniseg.core.volume import color_table
+    volume = make_volume(tmp_path)
+    mask = np.zeros((4,5,6), dtype=np.uint8); mask[:, :, 1] = 1; mask[:, :, 2] = 2
+    colors = color_table([(1, 'a', (255, 0, 0)), (2, 'b', (0, 0, 255))])
+    plain = render_slice(volume, 2, 1, 0, (0, 500))
+    red = render_slice(volume, 2, 1, 0, (0, 500), mask, 1.0, (1, 2), colors)
+    assert (red == [255, 0, 0]).all()
+    hidden = render_slice(volume, 2, 1, 0, (0, 500), mask, 1.0, (2,), colors)
+    assert (hidden == plain).all()

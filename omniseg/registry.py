@@ -26,6 +26,27 @@ def list_tasks(tasks_dir=TASKS_DIR):
     return tasks
 
 
+FALLBACK_COLORS = [(245, 180, 69), (56, 189, 181), (231, 99, 138),
+                   (116, 134, 214), (150, 196, 92), (190, 120, 200)]
+
+
+def label_entries(task):
+    """Foreground labels of a task as [(label_id, display_name, (r, g, b))], by id.
+
+    Names/colors come from the optional task['label_display'] ({"1": {"name", "color"}});
+    anything missing falls back to the label name from task['labels'] and a default palette.
+    """
+    display = task.get('label_display', {})
+    foreground = sorted((value, name) for name, value in task.get('labels', {}).items() if value != 0)
+    entries = []
+    for position, (label_id, label_name) in enumerate(foreground):
+        custom = display.get(str(label_id), {})
+        name = custom.get('name') or label_name.replace('_', ' ').capitalize()
+        color = tuple(custom.get('color') or FALLBACK_COLORS[position % len(FALLBACK_COLORS)])
+        entries.append((label_id, name, color))
+    return entries
+
+
 def get_task(task_id, tasks_dir=TASKS_DIR):
     """Returns the task dict matching task_id, or None if not found."""
     for task in list_tasks(tasks_dir):

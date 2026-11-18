@@ -27,7 +27,8 @@ tasks/<task_id>/
 | `trainer` | nnU-Net trainer class name used for training. |
 | `checkpoint` | Checkpoint filename to load (`-chk`). |
 | `channel_names` | Input channel order, as `{"0": "...", ...}`. |
-| `labels` | Label name → integer id, including `"background": 0`. |
+| `labels` | Label name → integer id, including `"background": 0`. The viewer builds its region rows, overlay colors and 3D switches from these. |
+| `label_display` | Optional. `{"1": {"name": "Gan", "color": [80, 140, 220]}, ...}` — Vietnamese display name and RGB color per label id. Missing entries fall back to the `labels` name and a default palette. |
 
 ## Adding a new model (e.g. lung CT, heart CT)
 

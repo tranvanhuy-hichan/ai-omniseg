@@ -82,3 +82,54 @@ def test_every_plane_replaces_the_entire_image_area(window):
     assert all(p.isVisible() for p in viewer.panels)
     # The complete app header plus case toolbar should leave space for images.
     assert viewer.viewer_stack.mapTo(viewer, viewer.viewer_stack.rect().topLeft()).y() <= 110
+
+
+def region_names(viewer):
+    from PySide6.QtWidgets import QLabel
+    names = []
+    for i in range(viewer.region_rows.count()):
+        texts = [l.text() for l in viewer.region_rows.itemAt(i).widget().findChildren(QLabel)]
+        names.append(texts[1])  # [dot, name, amount]
+    return names
+
+
+def pick_model(viewer, task_id):
+    viewer.model_choice.setCurrentIndex(next(i for i in range(viewer.model_choice.count())
+                                             if viewer.model_choice.itemData(i)['id'] == task_id))
+
+
+def test_region_panel_follows_selected_task(window):
+    viewer, app = window
+    pick_model(viewer, 'brain_tumour_mri')
+    assert region_names(viewer) == ['Phù nề', 'U không tăng tương phản', 'U tăng tương phản']
+    assert viewer.label_ids == [1, 2, 3] and 'BRAIN TUMOUR' in viewer.region_title.text()
+    pick_model(viewer, 'liver_tumour_ct')
+    assert region_names(viewer) == ['Gan', 'U gan']
+    assert viewer.label_ids == [1, 2] and 'LIVER' in viewer.region_title.text()
+    assert 'MSD TASK01' not in viewer.region_title.text()
+
+
+def test_liver_mask_fills_only_its_rows_and_model_switch_drops_it(window, tmp_path):
+    viewer, app = window
+    pick_model(viewer, 'liver_tumour_ct')
+    mask = np.zeros((10, 12, 14), dtype=np.uint8); mask[2:5, 2:5, 2:5] = 1; mask[3, 3, 3] = 2
+    viewer.set_mask(mask, tmp_path / 'mask.nii.gz')
+    assert len(viewer.region_labels) == 2
+    assert '26 voxel' in viewer.region_labels[0].text()
+    assert '1 voxel' in viewer.region_labels[1].text()
+    assert all(t.isEnabled() for t in viewer.region_toggles)
+    pick_model(viewer, 'brain_tumour_mri')
+    assert viewer.mask is None and len(viewer.region_labels) == 3
+    assert not any(t.isEnabled() for t in viewer.region_toggles)
+
+
+def test_run_button_is_locked_with_reason_when_checkpoint_is_missing(window, monkeypatch):
+    viewer, app = window
+    monkeypatch.setattr('omniseg.app.inference.checkpoint_exists', lambda task, root=None: task['id'] != 'liver_tumour_ct')
+    pick_model(viewer, 'liver_tumour_ct')
+    assert not viewer.infer.isEnabled()
+    assert not viewer.infer_reason.isHidden() and 'Chưa có checkpoint cho model này' in viewer.infer_reason.text()
+    assert 'Chưa có checkpoint' in viewer.infer.toolTip()
+    monkeypatch.setattr('omniseg.app.inference.checkpoint_exists', lambda task, root=None: True)
+    pick_model(viewer, 'brain_tumour_mri'); pick_model(viewer, 'liver_tumour_ct')
+    assert viewer.infer.isEnabled() and viewer.infer_reason.isHidden()

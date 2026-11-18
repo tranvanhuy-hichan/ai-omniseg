@@ -60,22 +60,23 @@ class Volume:
         low, high = np.percentile(values[::max(1, values.size // 200000)], [1, 99])
         return float(low), float(max(high, low + 1))
 
-    def load_mask(self, path):
+    def load_mask(self, path, labels=(1, 2, 3)):
         mask = nib.as_closest_canonical(nib.load(path))
         if mask.shape != self.data.shape[:3] or not np.allclose(mask.affine, self.image.affine, atol=1e-4, rtol=0):
-            raise ValueError('Mask không cùng shape/affine với MRI. Cần đăng ký ảnh trước khi chồng mask.')
+            raise ValueError('Mask không cùng shape/affine với ảnh. Cần đăng ký ảnh trước khi chồng mask.')
         values = mask.get_fdata(dtype=np.float32)
-        if not np.isin(values, [0, 1, 2, 3]).all():
-            raise ValueError('Viewer này dùng nhãn MSD: 0=nền, 1=phù nề, 2=u không tăng, 3=u tăng tương phản.')
+        allowed = [0, *labels]
+        if not np.isin(values, allowed).all():
+            raise ValueError(f'Mask có nhãn ngoài tập của mô hình đang chọn (chỉ nhận nhãn {allowed}).')
         return np.ascontiguousarray(values.astype(np.uint8))
 
-    def label_volumes(self, mask):
+    def label_volumes(self, mask, labels=(1, 2, 3)):
         unit = self.image.header.get_xyzt_units()[0]
         factor = {'mm': 0.001, 'meter': 1e6, 'micron': 1e-12}.get(unit)
         if factor is None:
             return None
         voxel_ml = abs(np.linalg.det(self.image.affine[:3, :3])) * factor
-        return [float(np.count_nonzero(mask == label) * voxel_ml) for label in (1, 2, 3)]
+        return [float(np.count_nonzero(mask == label) * voxel_ml) for label in labels]
 
 
 def plane(array, axis, index):
@@ -83,15 +84,24 @@ def plane(array, axis, index):
     return np.ascontiguousarray(np.flipud(np.take(array, index, axis=axis).T))
 
 
-def render_slice(volume, axis, position, channel, window, mask=None, opacity=0.35, visible_labels=(1, 2, 3)):
+def color_table(entries):
+    """RGB lookup indexed by label id from registry.label_entries(); unlisted ids stay black."""
+    table = np.zeros((max([label for label, _, _ in entries], default=0) + 1, 3), dtype=np.uint8)
+    for label, _, color in entries:
+        table[label] = color
+    return table
+
+
+def render_slice(volume, axis, position, channel, window, mask=None, opacity=0.35, visible_labels=None, colors=None):
     values = plane(volume.channels[channel], axis, position)
     low, high = window
     gray = np.clip((values - low) / max(high - low, 1e-6) * 255, 0, 255).astype(np.uint8)
     rgb = np.repeat(gray[..., None], 3, axis=2)
     if mask is not None:
         labels = plane(mask, axis, position)
-        if len(visible_labels) < 3:
+        if visible_labels is not None:
             labels = np.where(np.isin(labels, visible_labels), labels, 0)
-        foreground = labels > 0
-        rgb[foreground] = ((1 - opacity) * rgb[foreground] + opacity * COLORS[labels[foreground]]).astype(np.uint8)
+        table = COLORS if colors is None else colors
+        foreground = (labels > 0) & (labels < len(table))
+        rgb[foreground] = ((1 - opacity) * rgb[foreground] + opacity * table[labels[foreground]]).astype(np.uint8)
     return np.ascontiguousarray(rgb)

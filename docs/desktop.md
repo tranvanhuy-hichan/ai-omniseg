@@ -24,7 +24,7 @@ The Makefile uses `~/venvs/ai` by default. Override with `VENV=/path/to/venv`.
 - Separate mask loading with strict shape/affine and label 0–3 checks.
 - Colored mask overlay, opacity control, voxel counts and physical volumes when spatial units are known.
 
-Open an MRI first. To see ground truth, use **Nạp mask** and select the identically named file in `labelsTr`.
+Open an image first (folder icon next to the search box, or **Ctrl+O**). To see ground truth, use **Nạp mask** and select the identically named file in `labelsTr`.
 The source of the mask is always displayed; a reference mask is not a model prediction.
 
 ## Limits
@@ -62,7 +62,7 @@ Optional Qt regression tests run headlessly when PySide6 is installed; otherwise
 
 ## 3D surfaces from a mask
 
-1. Open an MRI, then **Nạp mask** and choose the same case's mask.
+1. Open an image, then **Nạp mask** and choose the same case's mask.
 2. Select **3D · Não và mask** from **Bố cục**.
 3. Drag with the left mouse button to rotate, use the middle button to pan, and scroll to zoom.
 4. Use the right inspector to toggle **Hiện toàn bộ MRI não**, each mask region, separate opacity sliders, and anatomical camera directions.
