@@ -96,6 +96,14 @@ postprocessing on a claimed independent test set.
 The **70 official test images have no public masks** in this archive: use
 them for inference/demo only, not locally scored accuracy.
 
+**Independent test set.** Unlike brain tumour, no MSD cases were held out of
+training: all 131 labeled cases are in the five folds. The scored held-out test
+is instead **3D-IRCADb-01** (20 patients, CC BY-NC-ND 4.0), which is unrelated to
+MSD/LiTS. Build it with `python scripts/import_ircadb.py`; it lands in
+`data/test_sets/liver_tumour_ct/` (see the README there). Its scanners and
+contrast phases differ from the training data, so expect a lower Dice than
+cross-validation. Use it only for the final report, never for model selection.
+
 With only 131 training cases — fewer than most MSD tasks — and a tumour
 label that is visually small and variable, expect published community
 benchmarks for this specific task to be lower than for the `liver` label

@@ -28,6 +28,7 @@ This maps what each top-level folder is for. For the end-to-end data flow
 │   ├── env.sh                   Exports nnUNet_raw/preprocessed/results defaults
 │   ├── pipeline.sh               plan / train / predict wrapper around nnUNetv2_* commands
 │   ├── import_msd.py             Verifies and converts an MSD archive for a given --task (tasks/<id>/)
+│   ├── import_ircadb.py           Downloads 3D-IRCADb-01 and builds the liver external test set (NIfTI)
 │   ├── prepare_dataset.py         Validates a custom dataset manifest before import
 │   └── check_environment.py       Reports installed nnU-Net/PyTorch/CUDA versions
 │
@@ -51,6 +52,21 @@ This maps what each top-level folder is for. For the end-to-end data flow
 
 Not tracked in git (created locally or downloaded, see `.gitignore`):
 `data/` (datasets), `artifacts/` (checkpoints, predictions), `.venv/`.
+
+Layout of the untracked folders:
+
+```text
+data/
+├── downloads/ source/ nnUNet_raw/ nnUNet_preprocessed/   Training-side data; recreate with the import scripts
+└── test_sets/                One folder per task, same ids as tasks/; never used for training
+    ├── brain_tumour_mri/       97 held-out MSD cases (images/, labels/, held_out_cases.txt)
+    └── liver_tumour_ct/        20 external 3D-IRCADb-01 cases (images/, labels/), from scripts/import_ircadb.py
+artifacts/
+├── nnUNet_results/<Dataset...>/   Trained checkpoints, one folder per task
+└── val_demo/                      Small demo inputs/predictions for the viewer
+```
+
+Each `data/test_sets/<task_id>/README.md` records the source, license and how the set was made.
 
 ## Adding a new model (new body region/modality)
 
