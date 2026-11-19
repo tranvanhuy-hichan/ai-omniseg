@@ -11,7 +11,6 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-import SimpleITK as sitk
 
 URL = 'https://cloud.ircad.fr/index.php/s/JN3z7EynBiwYyjy/download?path=%2F3Dircadb1.{n}'
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +52,7 @@ def choose_orientation(array, liver):
 
 def read_series(folder):
     """Read a DICOM folder as one 3D image, slices ordered by their patient position."""
+    import SimpleITK as sitk  # imported lazily so the pure-numpy helpers stay testable without it
     names = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(str(folder))
     if not names:
         raise ValueError(f'No DICOM series in {folder}')
@@ -62,6 +62,7 @@ def read_series(folder):
 
 
 def read_mask(folder):
+    import SimpleITK as sitk
     return sitk.GetArrayFromImage(read_series(folder)) > 0
 
 
@@ -80,6 +81,7 @@ def extract_case(archive, work):
 
 
 def convert_case(n, out):
+    import SimpleITK as sitk
     name = f'ircadb_{n:02d}'
     image_path, label_path = out / 'images' / f'{name}.nii.gz', out / 'labels' / f'{name}.nii.gz'
     if image_path.is_file() and label_path.is_file():

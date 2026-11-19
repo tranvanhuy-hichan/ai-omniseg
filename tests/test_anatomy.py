@@ -57,6 +57,7 @@ def test_smooth_spreads_a_spike_without_changing_total_intensity():
 
 
 def test_viewer_creates_ct_anatomy_with_ct_profile(tmp_path):
+    pytest.importorskip('vtkmodules.vtkRenderingCore')
     import nibabel as nib
     from omniseg.core.anatomy import create_anatomy, set_anatomy_opacity
     from omniseg.core.volume import Volume
