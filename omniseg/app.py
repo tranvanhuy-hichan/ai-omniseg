@@ -509,7 +509,7 @@ class Workspace(QMainWindow):
             self.region_labels.append(amount)
             self.region_toggles.append(toggle)
             self.region_rows.addWidget(row_widget)
-        if self.surface_viewer is not None: self.surface_viewer.set_labels(entries)
+        if self.surface_viewer is not None: self.surface_viewer.set_labels(entries, registry.label_opacities(task) if task else None)
 
     def infer_block_reason(self):
         task = self.current_task
@@ -578,7 +578,7 @@ class Workspace(QMainWindow):
         if self.surface_viewer is None:
             try:
                 from .view3d import SurfaceViewer
-                self.surface_viewer = SurfaceViewer(registry.label_entries(self.current_task) if self.current_task else [])
+                self.surface_viewer = SurfaceViewer(registry.label_entries(self.current_task) if self.current_task else [], registry.label_opacities(self.current_task) if self.current_task else None)
                 self.viewer_stack.addWidget(self.surface_viewer)
                 self.inspector_layout.insertWidget(1,self.surface_viewer.settings)
                 self.update_3d_input()
@@ -598,7 +598,7 @@ class Workspace(QMainWindow):
 
     def update_3d_input(self):
         if self.surface_viewer is None: return
-        self.surface_viewer.set_anatomy(self.volume,max(0,self.channel.currentIndex()))
+        self.surface_viewer.set_anatomy(self.volume,max(0,self.channel.currentIndex()),(self.current_task or {}).get('modality'))
         if self.volume is None or self.mask is None:
             self.surface_viewer.set_input(None)
         else:
@@ -678,7 +678,7 @@ class Workspace(QMainWindow):
     def channel_changed(self, index):
         if self.volume is not None and index >= 0:
             self.reset_window()
-            if self.surface_viewer: self.surface_viewer.set_anatomy(self.volume,index)
+            if self.surface_viewer: self.surface_viewer.set_anatomy(self.volume,index,(self.current_task or {}).get('modality'))
 
     def reset_window(self):
         if self.volume is None: return

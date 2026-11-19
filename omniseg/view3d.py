@@ -1,6 +1,6 @@
 """VTK MRI anatomy and segmentation surfaces embedded in a native Qt workspace."""
 import numpy as np
-from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtCore import QThread, Signal, Qt, QTimer
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QSlider, QComboBox, QGroupBox
 import vtkmodules.qt
 vtkmodules.qt.PyQtImpl = 'PySide6'
@@ -27,11 +27,14 @@ class SurfaceWorker(QThread):
 
 
 class SurfaceViewer(QWidget):
-    def __init__(self,entries=()):
+    def __init__(self,entries=(),opacities=None):
         super().__init__()
-        self.entries=list(entries)
+        self.entries=list(entries);self.label_opacity=dict(opacities or {})
         self.actors={};self.anatomy_actor=None;self.anatomy_key=None
         self.worker=None;self.pending=None;self.generation=0;self.initialized=False
+        # Every wheel tick fires Start/EndInteraction, so bring the volume back only after the camera has been still.
+        self.restore_timer=QTimer(self);self.restore_timer.setSingleShot(True);self.restore_timer.setInterval(250)
+        self.restore_timer.timeout.connect(self.restore_anatomy)
         layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
         self.vtk=QVTKRenderWindowInteractor(self);self.vtk.setMinimumSize(200,200)
         self.renderer=vtkRenderer();self.renderer.SetBackground(.055,.09,.14)
@@ -74,7 +77,7 @@ class SurfaceViewer(QWidget):
         self.show_anatomy.setToolTip('Dựng thể tích từ cường độ ảnh đang chọn. Không phải mask phân đoạn.')
         self.show_anatomy.toggled.connect(self.update_appearance)
         controls.addWidget(muted('Độ đục ảnh'))
-        self.brain_opacity=QSlider(Qt.Orientation.Horizontal);self.brain_opacity.setRange(1,100);self.brain_opacity.setValue(25)
+        self.brain_opacity=QSlider(Qt.Orientation.Horizontal);self.brain_opacity.setRange(1,100);self.brain_opacity.setValue(12)
         self.brain_opacity.valueChanged.connect(self.update_appearance);controls.addWidget(self.brain_opacity)
         controls.addWidget(muted('CÁC VÙNG TRONG MASK'))
         self.toggles={};self.colors={}
@@ -89,9 +92,12 @@ class SurfaceViewer(QWidget):
         self.set_labels(self.entries)
         self.setToolTip('Chuột trái: xoay · Chuột giữa: di chuyển · Cuộn: zoom · Esc: về lát cắt')
 
-    def set_labels(self,entries):
-        """Rebuild the per-region switches for a (possibly different) task's labels."""
-        self.entries=list(entries)
+    def set_labels(self,entries,opacities=None):
+        """Rebuild the per-region switches for a (possibly different) task's labels.
+
+        opacities: optional {label: factor 0..1} multiplying the global mask opacity, so a
+        large outer region (liver, edema) can stay translucent over the regions inside it."""
+        self.entries=list(entries);self.label_opacity=dict(opacities or {})
         while self.region_box.count():
             widget=self.region_box.takeAt(0).widget()
             if widget is not None:widget.hide();widget.setParent(None);widget.deleteLater()
@@ -119,20 +125,27 @@ class SurfaceViewer(QWidget):
         if self.initialized:self.vtk.GetRenderWindow().Render()
 
     def _interaction_started(self,*args):
-        self.renderer.SetUseDepthPeeling(False)
+        # Hide the translucent image volume while the camera moves. Without depth
+        # peeling the volume pass is drawn over the mask surfaces and washes them out;
+        # keeping peeling on for the (cheap) surfaces alone keeps nested regions correct.
+        self.restore_timer.stop()
+        if self.anatomy_actor is not None:self.anatomy_actor.SetVisibility(False)
 
     def _interaction_ended(self,*args):
-        self.renderer.SetUseDepthPeeling(True)
+        self.restore_timer.start()
+
+    def restore_anatomy(self):
+        if self.anatomy_actor is not None:self.anatomy_actor.SetVisibility(self.show_anatomy.isChecked())
         self.render()
 
-    def set_anatomy(self,volume,channel=0):
-        key=(id(volume),channel) if volume is not None else None
+    def set_anatomy(self,volume,channel=0,modality=None):
+        key=(id(volume),channel,modality) if volume is not None else None
         if key==self.anatomy_key:return
         if self.anatomy_actor is not None:self.renderer.RemoveVolume(self.anatomy_actor)
         self.anatomy_actor=None;self.anatomy_key=key
         self.show_anatomy.setEnabled(volume is not None)
         if volume is not None:
-            self.anatomy_actor=create_anatomy(volume,channel)
+            self.anatomy_actor=create_anatomy(volume,channel,modality)
             self.renderer.AddVolume(self.anatomy_actor)
         self.update_appearance();self.reset_camera()
 
@@ -180,7 +193,7 @@ class SurfaceViewer(QWidget):
 
     def update_appearance(self,*args):
         for label,actor in self.actors.items():
-            actor.SetVisibility(self.toggles[label].isChecked());actor.GetProperty().SetOpacity(self.opacity.value()/100)
+            actor.SetVisibility(self.toggles[label].isChecked());actor.GetProperty().SetOpacity(self.opacity.value()/100*self.label_opacity.get(label,1.))
         if self.anatomy_actor:
             self.anatomy_actor.SetVisibility(self.show_anatomy.isChecked())
             set_anatomy_opacity(self.anatomy_actor,self.brain_opacity.value()/100)
@@ -207,5 +220,6 @@ class SurfaceViewer(QWidget):
 
     def is_busy(self):return self.worker is not None and self.worker.isRunning()
     def shutdown(self):
+        self.restore_timer.stop()
         if self.marker:self.marker.SetEnabled(False)
         self.vtk.Finalize()

@@ -28,7 +28,7 @@ tasks/<task_id>/
 | `checkpoint` | Checkpoint filename to load (`-chk`). |
 | `channel_names` | Input channel order, as `{"0": "...", ...}`. |
 | `labels` | Label name → integer id, including `"background": 0`. The viewer builds its region rows, overlay colors and 3D switches from these. |
-| `label_display` | Optional. `{"1": {"name": "Gan", "color": [80, 140, 220]}, ...}` — Vietnamese display name and RGB color per label id. Missing entries fall back to the `labels` name and a default palette. |
+| `label_display` | Optional. `{"1": {"name": "Gan", "color": [80, 140, 220], "opacity": 0.45}, ...}` — Vietnamese display name, RGB color and relative 3D surface opacity (0.05–1, default 1) per label id. Give a large outer region (liver, edema) a lower `opacity` so the regions inside it stay visible. Missing entries fall back to the `labels` name and a default palette. |
 
 ## Adding a new model (e.g. lung CT, heart CT)
 

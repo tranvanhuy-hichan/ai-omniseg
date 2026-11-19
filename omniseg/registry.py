@@ -47,6 +47,20 @@ def label_entries(task):
     return entries
 
 
+def label_opacities(task):
+    """{label_id: relative 3D surface opacity 0..1} from optional label_display[id]['opacity'].
+
+    Labels that don't set one are omitted (the viewer treats those as fully opaque relative to
+    the global mask opacity)."""
+    display = task.get('label_display', {})
+    result = {}
+    for name, label_id in task.get('labels', {}).items():
+        value = display.get(str(label_id), {}).get('opacity')
+        if label_id != 0 and value is not None:
+            result[label_id] = min(1., max(.05, float(value)))
+    return result
+
+
 def get_task(task_id, tasks_dir=TASKS_DIR):
     """Returns the task dict matching task_id, or None if not found."""
     for task in list_tasks(tasks_dir):

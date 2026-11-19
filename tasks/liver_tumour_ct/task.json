@@ -11,7 +11,7 @@
   "channel_names": {"0": "CT"},
   "labels": {"background": 0, "liver": 1, "cancer": 2},
   "label_display": {
-    "1": {"name": "Gan", "color": [80, 140, 220]},
+    "1": {"name": "Gan", "color": [80, 140, 220], "opacity": 0.45},
     "2": {"name": "U gan", "color": [250, 204, 21]}
   }
 }

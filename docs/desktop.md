@@ -92,4 +92,6 @@ voxel offset preserved so it remains aligned to mask surfaces. The viewer preser
 the desktop entry point defaults to `QT_QPA_PLATFORM=xcb` unless an explicit platform was supplied.
 
 3D controls are in the right inspector; no separate 3D title/source toolbar consumes image space.
+
+While the camera is being dragged or zoomed the translucent image volume is hidden and only the mask surfaces are drawn; it returns about 0.25 s after the camera stops. This keeps the mask readable and rotation smooth. The image is a faint context layer (default opacity 12%): MRI is lightly smoothed, and CT uses a fixed Hounsfield window that shows bone and a faint skin shell while leaving soft tissue and air transparent.
 The selected MRI channel is used for the volume. Raw images remain unchanged.
