@@ -14,21 +14,29 @@ và không phải bản fork của nnU-Net.
 
 ![OmniSeg phân đoạn một ca u não trên MRI](docs/images/omniseg-brain-segmentation.png)
 
-*Brain Tumour (MRI): ca `BRATS_047` thuộc tập validation của fold 0. Ba vùng u được checkpoint đã huấn luyện dự
-đoán ngay trong app (khoảng 20 giây trên laptop RTX 3050).*
+*Brain Tumour (MRI): ca `BRATS_010` thuộc tập validation của fold 0. Ba vùng u được checkpoint đã huấn luyện dự
+đoán ngay trong app (21 giây trên laptop RTX 3050 4 GB). Bốn khung xem với đường định vị đồng bộ; thanh công cụ có
+các công cụ định vị, W/L, kéo ảnh, zoom, thước, cọ vẽ, tẩy.*
 
 ![OmniSeg phân đoạn một ca gan trên CT](docs/images/omniseg-liver-segmentation.png)
 
-*Liver Tumour (CT): ca `liver_77` thuộc tập validation của fold 0. Gan và tổn thương được dự đoán ngay trong app
-(khoảng 56 giây trên cùng GPU). Tổn thương dự đoán nhỏ (4,5 mL); ảnh này minh họa giao diện, không phải bằng chứng
+*Liver Tumour (CT): ca `ircadb_01` thuộc tập ngoài [3D-IRCADb-01](docs/dataset-liver.md). Gan và tổn thương được
+dự đoán ngay trong app (35 giây trên cùng GPU), cửa sổ mô mềm CT. Ảnh này minh họa giao diện, không phải bằng chứng
 về độ chính xác.*
 
 | Não, 3D | Gan, 3D |
 |---|---|
 | ![Hình 3D bề mặt u não trên thể tích MRI](docs/images/omniseg-3d-brain.png) | ![Hình 3D bề mặt gan trên khung xương CT](docs/images/omniseg-3d-liver.png) |
 
-*Chế độ 3D: bề mặt mask phủ trên bản dựng mờ của ảnh. Ở ảnh gan, tổn thương dự đoán nằm trong bề mặt gan bán trong
-suốt nên bị che ở góc nhìn này.*
+*Chế độ 3D ở bố cục "1+3" (một khung lớn, ba khung nhỏ): bề mặt mask phủ trên bản dựng mờ của ảnh. Ở ảnh gan, các
+tổn thương dự đoán (màu vàng) hiện xuyên qua bề mặt gan bán trong suốt (màu xanh).*
+
+![Số đo từng vùng và Dice / IoU so với mask tham chiếu](docs/images/omniseg-analysis.png)
+
+*Tab Phân tích: với mỗi vùng có thể tích, số khối rời nhau, đường kính lớn nhất và cường độ trung bình của mask hiện
+tại, cùng Dice / IoU so với mask tham chiếu đã nạp (đường viền trắng trên lát cắt). Ở đây `BRATS_010` được so với
+nhãn của bộ dữ liệu; Dice của một ca không phải ước lượng độ chính xác của mô hình, và ca này từng xuất hiện trong
+theo dõi lúc huấn luyện.*
 
 ![Dropdown mô hình liệt kê hai task](docs/images/omniseg-model-picker.png)
 
@@ -111,11 +119,18 @@ python -m omniseg          # hoặc: make desktop
 
 Nếu không dùng `uv`, cài trước bản [PyTorch](https://pytorch.org/get-started/locally/) phù hợp, rồi chạy
 `python -m pip install -r requirements.txt -r requirements-desktop.txt`. Dự án ghim nnU-Net 2.8.1.
-
+1. Mở ảnh bằng nút **Mở** trên thanh công cụ (NIfTI hoặc thư mục DICOM), nhấn **Ctrl+O**, hoặc kéo thả vào cửa sổ.
 1. Mở ảnh bằng icon thư mục cạnh ô tìm kiếm (menu cho chọn một ảnh hoặc cả thư mục), hoặc nhấn **Ctrl+O**.
-2. Chọn mô hình ở dropdown **Mô hình** trên header.
-3. Bấm **Chạy phân đoạn**, hoặc nạp mask bằng **Nạp mask**. Panel luôn ghi rõ mask là dự đoán của mô hình hay nhãn
-   tham chiếu.
+2. Bấm **Chạy phân đoạn AI** (bật *Tính bản đồ không chắc chắn* nếu muốn xem entropy softmax), hoặc nạp mask bằng
+   **Nạp mask…**. Mô hình phù hợp với số kênh của ảnh được chọn tự động; banner trên ảnh luôn ghi rõ mask là dự đoán AI
+   chưa kiểm định.
+3. Rà soát và sửa: **Cọ vẽ / Tẩy** (hoàn tác/làm lại), **Thước** đo khoảng cách, tab **Phân tích** cho thể tích từng vùng,
+   đường kính khối lớn nhất, cường độ, và Dice/IoU so với mask tham chiếu.
+4. **Xuất** để lưu mask (cùng hướng và affine với ảnh gốc), xuất mesh (STL/PLY/OBJ) hoặc báo cáo CSV/JSON.
+
+Chuột: cuộn = đổi lát, Ctrl+cuộn = phóng to,
+chuột phải kéo = W/L, chuột giữa kéo = di chuyển. Phím: V W P Z M B E chọn công cụ, `[` `]` cỡ cọ, 1/2/3 bố cục.
+
 
 **Checkpoint đã huấn luyện không nằm trong repo hay bản release.** Nút chạy bị khoá, kèm lý do, cho đến khi có
 checkpoint của mô hình đang chọn tại
@@ -187,10 +202,12 @@ Dataset không được đóng kèm và giữ điều khoản riêng.
 - **Medical Segmentation Decathlon**, Task01_BrainTumour (dữ liệu BraTS 2016–2017) và Task03_Liver:
   [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Antonelli et al., *The Medical Segmentation
   Decathlon*, Nature Communications (2022), [doi:10.1038/s41467-022-30695-9](https://doi.org/10.1038/s41467-022-30695-9).
-  Các ảnh chụp màn hình ở trên chứa lát cắt của ca MSD `BRATS_047` và `liver_77` cùng lớp phủ do mô hình dự đoán,
-  được chia sẻ theo cùng giấy phép với ghi công này.
+  Các ảnh chụp màn hình não ở trên chứa lát cắt của ca MSD `BRATS_010` cùng lớp phủ do mô hình dự đoán, được chia sẻ
+  theo cùng giấy phép với ghi công này.
 - **3D-IRCADb-01** (tập test gan bên ngoài): [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/),
-  chỉ phi thương mại, không được phân phối lại ở đây. Soler et al., *3D image reconstruction for comparison of
+  chỉ phi thương mại, dữ liệu không được phân phối lại ở đây. Ngoại lệ duy nhất là hai ảnh chụp màn hình gan ở trên,
+  minh họa bằng lát cắt của ca `ircadb_01` cùng lớp phủ do mô hình dự đoán; chúng vẫn chịu giấy phép đó (chỉ dùng phi
+  thương mại, có ghi công). Soler et al., *3D image reconstruction for comparison of
   algorithm database: a patient specific anatomical and medical image database*, IRCAD, Strasbourg, France, Tech.
   Rep. (2010).
 

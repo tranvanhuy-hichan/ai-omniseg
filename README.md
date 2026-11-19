@@ -14,21 +14,29 @@ This is research software, not a clinical diagnostic system, and not a fork of n
 
 ![OmniSeg segmenting a brain tumour case on MRI](docs/images/omniseg-brain-segmentation.png)
 
-*Brain Tumour (MRI): case `BRATS_047` from the fold-0 validation split. The three tumour regions were
-predicted inside the app by the trained checkpoint (about 20 s on a laptop RTX 3050).*
+*Brain Tumour (MRI): case `BRATS_010` from the fold-0 validation split. The three tumour regions were
+predicted inside the app by the trained checkpoint (21 s on a laptop RTX 3050 4 GB). Four viewports with a
+synchronised crosshair; the toolbar holds the tools (locate, window/level, pan, zoom, ruler, brush, eraser).*
 
 ![OmniSeg segmenting a liver case on CT](docs/images/omniseg-liver-segmentation.png)
 
-*Liver Tumour (CT): case `liver_77` from the fold-0 validation split. Liver and lesion were predicted inside the
-app (about 56 s on the same GPU). The predicted lesion is small (4.5 mL); this image shows the interface and is not
-evidence of accuracy.*
+*Liver Tumour (CT): case `ircadb_01` from the external [3D-IRCADb-01](docs/dataset-liver.md) set. Liver and lesion
+were predicted inside the app (35 s on the same GPU), CT soft-tissue window. This image shows the interface and is
+not evidence of accuracy.*
 
 | Brain, 3D | Liver, 3D |
 |---|---|
 | ![3D view of the brain tumour surfaces over the MRI volume](docs/images/omniseg-3d-brain.png) | ![3D view of the liver surface over the CT bone preset](docs/images/omniseg-3d-liver.png) |
 
-*3D view: mask surfaces over a faint rendering of the image. In the liver image the predicted lesion lies inside the
-semi-transparent liver surface and is hidden from this angle.*
+*3D view in the "1+3" layout (one large viewport, three small ones): mask surfaces over a faint rendering of the
+image. In the liver image the predicted lesions (yellow) show through the semi-transparent liver surface (blue).*
+
+![Per-region measurements and Dice / IoU against a reference mask](docs/images/omniseg-analysis.png)
+
+*Analysis tab: for each region the volume, number of separate components, largest diameter and mean intensity of
+the current mask, and Dice / IoU against a loaded reference mask (white outline on the slices). Here `BRATS_010`
+is compared with its dataset label; Dice from one case is not an estimate of model accuracy, and this case was
+visible to training-time monitoring.*
 
 ![The model dropdown listing both tasks](docs/images/omniseg-model-picker.png)
 
@@ -114,11 +122,19 @@ python -m omniseg          # or: make desktop
 Without `uv`, install the appropriate [PyTorch build](https://pytorch.org/get-started/locally/) first, then run
 `python -m pip install -r requirements.txt -r requirements-desktop.txt`. The project pins nnU-Net 2.8.1.
 
-1. Open an image with the folder icon next to the search box (a menu offers one image or a whole folder), or
-   press **Ctrl+O**.
-2. Pick the model in the **Mô hình** dropdown in the header.
-3. Press **Chạy phân đoạn** to segment, or load a mask with **Nạp mask**. The panel always says whether a mask is a
-   model prediction or a reference.
+1. Open an image with **Mở** in the toolbar (NIfTI file or DICOM folder), press **Ctrl+O**, or drag a file/folder into
+   the window. The model matching the image's channel count is selected automatically.
+2. Press **Chạy phân đoạn AI** (tick *Tính bản đồ không chắc chắn* first for a softmax-entropy map), or load a mask
+   with **Nạp mask…**. The viewport banner always says when a mask is an unreviewed AI prediction.
+3. Review and correct: **Cọ vẽ / Tẩy** (undo/redo), **Thước** for distances, the **Phân tích** tab for per-region
+   volume, largest lesion diameter, intensity, and Dice/IoU against a loaded reference mask.
+4. **Xuất** saves the mask (same orientation and affine as the opened image), exports meshes (STL/PLY/OBJ) or a
+   CSV/JSON report.
+
+Layout: four viewports (Axial, Coronal, Sagittal, 3D) with corner annotations and a synchronised crosshair; **2×2**,
+**1+3** and **1×1** layouts (double-click a viewport). Mouse: wheel = slice, Ctrl+wheel = zoom, right-drag = window/level,
+middle-drag = pan. Keys: V W P Z M B E select tools, `[` `]` brush size, 1/2/3 layouts, Esc leaves 1×1.
+DICOM import needs `SimpleITK` (listed in `requirements-desktop.txt`).
 
 **The trained checkpoints are not in this repository or in the release.** The Run button stays locked, with the
 reason shown, until the checkpoint for the selected model exists at
@@ -189,10 +205,12 @@ Datasets are not bundled and keep their own terms.
 - **Medical Segmentation Decathlon**, Task01_BrainTumour (BraTS 2016–2017 data) and Task03_Liver:
   [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Antonelli et al., *The Medical Segmentation
   Decathlon*, Nature Communications (2022), [doi:10.1038/s41467-022-30695-9](https://doi.org/10.1038/s41467-022-30695-9).
-  The screenshots above contain slices of MSD cases `BRATS_047` and `liver_77` with model-predicted overlays and are
-  shared under the same license with this attribution.
+  The brain screenshots above contain slices of MSD case `BRATS_010` with model-predicted overlays and are shared
+  under the same license with this attribution.
 - **3D-IRCADb-01** (external liver test set): [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/),
-  non-commercial, not redistributed here. Soler et al., *3D image reconstruction for comparison of algorithm
+  non-commercial, and its data are not redistributed here. The only exception is the two liver screenshots above,
+  which show slices of case `ircadb_01` with model-predicted overlays for illustration; they remain subject to
+  that license (non-commercial use, attribution). Soler et al., *3D image reconstruction for comparison of algorithm
   database: a patient specific anatomical and medical image database*, IRCAD, Strasbourg, France, Tech. Rep. (2010).
 
 Original project code is licensed **AGPL-3.0-or-later**. Dependencies keep their own licenses (nnU-Net is Apache-2.0);
