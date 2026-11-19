@@ -2,7 +2,7 @@
 
 **Tiếng Việt** · [English](README.md)
 
-[![CI](https://github.com/tranvanhuy-hichan/brain-mri-segmentation/actions/workflows/ci.yml/badge.svg)](https://github.com/tranvanhuy-hichan/brain-mri-segmentation/actions/workflows/ci.yml)
+[![CI](https://github.com/tranvanhuy-hichan/omniseg/actions/workflows/ci.yml/badge.svg)](https://github.com/tranvanhuy-hichan/omniseg/actions/workflows/ci.yml)
 [![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
 
@@ -100,8 +100,8 @@ nào trên đó.
 Python 3.11 là bản được kiểm thử. Cần Bash cho các wrapper pipeline (Linux/macOS hoặc WSL).
 
 ```bash
-git clone https://github.com/tranvanhuy-hichan/brain-mri-segmentation.git
-cd brain-mri-segmentation
+git clone https://github.com/tranvanhuy-hichan/omniseg.git
+cd omniseg
 uv venv --python 3.11 .venv
 source .venv/bin/activate
 uv pip install --torch-backend auto -r requirements.txt -r requirements-desktop.txt
