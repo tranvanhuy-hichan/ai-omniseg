@@ -18,9 +18,12 @@ def nnunet_env(root=REPO_ROOT):
     }
 
 
-def build_predict_command(task, input_dir, output_dir):
-    """Returns the nnUNetv2_predict argv for running `task` on input_dir."""
-    return [
+def build_predict_command(task, input_dir, output_dir, save_probabilities=False):
+    """Returns the nnUNetv2_predict argv for running `task` on input_dir.
+
+    save_probabilities also writes <case>.npz with the softmax output (for the uncertainty map).
+    """
+    command = [
         'nnUNetv2_predict',
         '-d', str(task['nnunet_dataset_id']),
         '-c', task['nnunet_config'],
@@ -30,6 +33,9 @@ def build_predict_command(task, input_dir, output_dir):
         '-tr', task['trainer'],
         '-chk', task['checkpoint'],
     ]
+    if save_probabilities:
+        command.append('--save_probabilities')
+    return command
 
 
 def build_predict_env(task, root=REPO_ROOT):

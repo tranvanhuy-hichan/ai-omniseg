@@ -19,7 +19,7 @@ def list_tasks(tasks_dir=TASKS_DIR):
     for entry in sorted(tasks_dir.iterdir()):
         task_file = entry / 'task.json'
         if entry.is_dir() and task_file.is_file():
-            task = json.loads(task_file.read_text())
+            task = json.loads(task_file.read_text(encoding='utf-8'))
             task.setdefault('id', entry.name)
             task['_dir'] = str(entry)
             tasks.append(task)

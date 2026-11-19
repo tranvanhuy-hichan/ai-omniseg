@@ -17,6 +17,7 @@ class Volume:
     names: list[str]
     oblique: bool
     channels: list = None
+    orig_affine: object = None
 
     def __post_init__(self):
         # nibabel returns Fortran-ordered arrays; slicing a channel's 3D volume out
@@ -29,7 +30,8 @@ class Volume:
     @classmethod
     def load(cls, path):
         path = Path(path)
-        image = nib.as_closest_canonical(nib.load(path))
+        raw = nib.load(path)
+        image = nib.as_closest_canonical(raw)
         if len(image.shape) not in (3, 4) or any(s < 1 for s in image.shape):
             raise ValueError('Cần NIfTI 3D hoặc 4D có kích thước hợp lệ.')
         if not np.isfinite(image.affine).all() or abs(np.linalg.det(image.affine[:3, :3])) < 1e-12:
@@ -46,7 +48,7 @@ class Volume:
             names = [CHANNELS[int(stem[-4:])]]
         axes = image.affine[:3, :3]
         oblique = not np.allclose(axes, np.diag(np.diag(axes)), atol=1e-4)
-        return cls(path, image, data, names, oblique)
+        return cls(path, image, data, names, oblique, orig_affine=np.array(raw.affine, dtype=float))
 
     @property
     def spacing(self):
@@ -70,13 +72,46 @@ class Volume:
             raise ValueError(f'Mask có nhãn ngoài tập của mô hình đang chọn (chỉ nhận nhãn {allowed}).')
         return np.ascontiguousarray(values.astype(np.uint8))
 
-    def label_volumes(self, mask, labels=(1, 2, 3)):
+    @property
+    def voxel_ml(self):
+        """Volume of one voxel in millilitres, or None when the NIfTI has no length unit."""
         unit = self.image.header.get_xyzt_units()[0]
         factor = {'mm': 0.001, 'meter': 1e6, 'micron': 1e-12}.get(unit)
         if factor is None:
             return None
-        voxel_ml = abs(np.linalg.det(self.image.affine[:3, :3])) * factor
+        return float(abs(np.linalg.det(self.image.affine[:3, :3])) * factor)
+
+    def label_volumes(self, mask, labels=(1, 2, 3)):
+        voxel_ml = self.voxel_ml
+        if voxel_ml is None:
+            return None
         return [float(np.count_nonzero(mask == label) * voxel_ml) for label in labels]
+
+    def is_ct(self, modality=None):
+        """True for a CT task or, without one, when the image contains air near -1000 HU."""
+        if str(modality or '').upper() == 'CT':
+            return True
+        return bool(float(np.min(self.channels[0])) <= -500.0)
+
+    def to_original(self, array):
+        """Reorient a canonical (RAS) 3D array back to the axis order/affine of the file on disk."""
+        return reorient(array, self.image.affine, self.orig_affine if self.orig_affine is not None else self.image.affine)
+
+    def from_original(self, array):
+        """Reorient a 3D array laid out like the file on disk into the canonical (RAS) grid."""
+        return reorient(array, self.orig_affine if self.orig_affine is not None else self.image.affine, self.image.affine)
+
+    def voxel_value(self, channel, index):
+        shape = self.channels[channel].shape
+        if all(0 <= i < n for i, n in zip(index, shape)):
+            return float(self.channels[channel][tuple(index)])
+        return None
+
+
+def reorient(array, from_affine, to_affine):
+    """Re-lay `array` (voxel grid with affine `from_affine`) onto the axes of `to_affine`."""
+    transform = nib.orientations.ornt_transform(nib.io_orientation(from_affine), nib.io_orientation(to_affine))
+    return np.ascontiguousarray(nib.orientations.apply_orientation(array, transform))
 
 
 def plane(array, axis, index):
@@ -92,11 +127,31 @@ def color_table(entries):
     return table
 
 
-def render_slice(volume, axis, position, channel, window, mask=None, opacity=0.35, visible_labels=None, colors=None):
+def outline(labels):
+    """Boolean map of the pixels on the border of the non-zero region(s) of a 2D label slice."""
+    padded = np.pad(labels, 1)
+    centre = padded[1:-1, 1:-1]
+    edge = ((centre != padded[:-2, 1:-1]) | (centre != padded[2:, 1:-1])
+            | (centre != padded[1:-1, :-2]) | (centre != padded[1:-1, 2:]))
+    return edge & (centre > 0)
+
+
+def heat_rgb(values):
+    """'Hot' colour ramp (black-red-yellow-white) for values in 0..1."""
+    t = np.clip(values, 0, 1)[..., None] * 3.0
+    return (np.clip(t - np.array([0., 1., 2.]), 0, 1) * 255).astype(np.float32)
+
+
+def render_slice(volume, axis, position, channel, window, mask=None, opacity=0.35, visible_labels=None, colors=None,
+                 reference=None, heat=None, heat_opacity=0.7):
     values = plane(volume.channels[channel], axis, position)
     low, high = window
     gray = np.clip((values - low) / max(high - low, 1e-6) * 255, 0, 255).astype(np.uint8)
     rgb = np.repeat(gray[..., None], 3, axis=2)
+    if heat is not None:
+        level = plane(heat, axis, position)
+        weight = (heat_opacity * np.clip((level - 0.02) * 4, 0, 1))[..., None]
+        rgb = ((1 - weight) * rgb + weight * heat_rgb(level)).astype(np.uint8)
     if mask is not None:
         labels = plane(mask, axis, position)
         if visible_labels is not None:
@@ -104,4 +159,10 @@ def render_slice(volume, axis, position, channel, window, mask=None, opacity=0.3
         table = COLORS if colors is None else colors
         foreground = (labels > 0) & (labels < len(table))
         rgb[foreground] = ((1 - opacity) * rgb[foreground] + opacity * table[labels[foreground]]).astype(np.uint8)
+    if reference is not None:
+        # Reference (ground truth) is drawn as a white outline so it never hides the prediction.
+        ref = plane(reference, axis, position)
+        if visible_labels is not None:
+            ref = np.where(np.isin(ref, visible_labels), ref, 0)
+        rgb[outline(ref)] = (255, 255, 255)
     return np.ascontiguousarray(rgb)

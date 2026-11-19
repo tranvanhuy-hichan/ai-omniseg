@@ -34,7 +34,7 @@ class SurfaceViewer(QWidget):
         self.worker=None;self.pending=None;self.generation=0;self.initialized=False
         layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
         self.vtk=QVTKRenderWindowInteractor(self);self.vtk.setMinimumSize(200,200)
-        self.renderer=vtkRenderer();self.renderer.SetBackground(.055,.09,.14)
+        self.renderer=vtkRenderer();self.renderer.SetBackground(0,0,0)
         window=self.vtk.GetRenderWindow();window.AddRenderer(self.renderer)
         window.SetMultiSamples(0);window.SetAlphaBitPlanes(1)
         self.renderer.SetUseDepthPeeling(True);self.renderer.SetUseDepthPeelingForVolumes(True)
@@ -52,6 +52,11 @@ class SurfaceViewer(QWidget):
         # (the plain vtkActor meshes are not LOD-aware, so it does not affect them).
         layout.addWidget(self.vtk,1)
         self.marker=None
+        from vtkmodules.vtkRenderingCore import vtkTextActor
+        title=vtkTextActor();title.SetInput('3D')
+        prop=title.GetTextProperty();prop.SetFontSize(14);prop.SetBold(True);prop.SetColor(.71,.55,.95)
+        title.GetPositionCoordinate().SetCoordinateSystemToNormalizedViewport();title.SetPosition(.02,.94)
+        self.renderer.AddViewProp(title)
         # Settings live in the existing inspector, leaving the image area free of headers.
         self.settings=QGroupBox('Hiển thị 3D');controls=QVBoxLayout(self.settings);controls.setSpacing(10)
 

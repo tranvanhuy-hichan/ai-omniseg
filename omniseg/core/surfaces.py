@@ -2,12 +2,14 @@
 import numpy as np
 
 
-def build_surfaces(mask, affine, labels=(1, 2, 3)):
+def build_surfaces(mask, affine, labels=(1, 2, 3), reduction=0.6, smooth=0):
+    """Label surfaces in world mm. `reduction` is the decimation fraction (0 keeps every triangle);
+    `smooth` is the number of windowed-sinc smoothing passes (0 = none)."""
     from vtkmodules.util.numpy_support import numpy_to_vtk
     from vtkmodules.vtkCommonMath import vtkMatrix4x4
     from vtkmodules.vtkCommonDataModel import vtkImageData, vtkPolyData
     from vtkmodules.vtkCommonTransforms import vtkTransform
-    from vtkmodules.vtkFiltersCore import vtkPolyDataNormals, vtkDecimatePro
+    from vtkmodules.vtkFiltersCore import vtkPolyDataNormals, vtkDecimatePro, vtkWindowedSincPolyDataFilter
     from vtkmodules.vtkFiltersGeneral import vtkTransformFilter, vtkDiscreteFlyingEdges3D
 
     values = np.asarray(mask)
@@ -39,9 +41,17 @@ def build_surfaces(mask, affine, labels=(1, 2, 3)):
         # Flying edges on a ~240^3 volume produces far more triangles than the
         # screen can resolve; decimating keeps rotation/zoom smooth without a
         # visibly different silhouette.
-        decimate = vtkDecimatePro(); decimate.SetInputConnection(world.GetOutputPort())
-        decimate.SetTargetReduction(0.6); decimate.PreserveTopologyOn()
-        normals = vtkPolyDataNormals(); normals.SetInputConnection(decimate.GetOutputPort())
+        source = world
+        if reduction > 0:
+            decimate = vtkDecimatePro(); decimate.SetInputConnection(world.GetOutputPort())
+            decimate.SetTargetReduction(reduction); decimate.PreserveTopologyOn()
+            source = decimate
+        if smooth > 0:
+            smoother = vtkWindowedSincPolyDataFilter(); smoother.SetInputConnection(source.GetOutputPort())
+            smoother.SetNumberOfIterations(int(smooth)); smoother.BoundarySmoothingOff(); smoother.NonManifoldSmoothingOn()
+            smoother.NormalizeCoordinatesOn()
+            source = smoother
+        normals = vtkPolyDataNormals(); normals.SetInputConnection(source.GetOutputPort())
         normals.ConsistencyOn(); normals.AutoOrientNormalsOn(); normals.SplittingOff(); normals.Update()
         surface = vtkPolyData(); surface.DeepCopy(normals.GetOutput())
         if surface.GetNumberOfPoints(): result[label] = surface
