@@ -1,6 +1,6 @@
 """VTK MRI anatomy and segmentation surfaces embedded in a native Qt workspace."""
 import numpy as np
-from PySide6.QtCore import QThread, Signal, Qt, QTimer
+from PySide6.QtCore import QThread, Signal, Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QSlider, QComboBox, QGroupBox
 import vtkmodules.qt
 vtkmodules.qt.PyQtImpl = 'PySide6'
@@ -32,31 +32,24 @@ class SurfaceViewer(QWidget):
         self.entries=list(entries);self.label_opacity=dict(opacities or {})
         self.actors={};self.anatomy_actor=None;self.anatomy_key=None
         self.worker=None;self.pending=None;self.generation=0;self.initialized=False
-        # Every wheel tick fires Start/EndInteraction, so bring the volume back only after the camera has been still.
-        self.restore_timer=QTimer(self);self.restore_timer.setSingleShot(True);self.restore_timer.setInterval(250)
-        self.restore_timer.timeout.connect(self.restore_anatomy)
         layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(0)
         self.vtk=QVTKRenderWindowInteractor(self);self.vtk.setMinimumSize(200,200)
         self.renderer=vtkRenderer();self.renderer.SetBackground(.055,.09,.14)
         window=self.vtk.GetRenderWindow();window.AddRenderer(self.renderer)
         window.SetMultiSamples(0);window.SetAlphaBitPlanes(1)
         self.renderer.SetUseDepthPeeling(True);self.renderer.SetUseDepthPeelingForVolumes(True)
-        # Keep peel count low: it is the render cost multiplier for every frame while
-        # dragging the camera, and 100 peels made interaction noticeably laggy with
-        # both the anatomy volume and mask surfaces visible. 8 is still enough depth
-        # ordering for a handful of semi-transparent surfaces plus the volume.
+        # Depth peeling must stay on at all times, including while the camera is dragged:
+        # it is what interleaves the translucent image volume with the translucent mask
+        # surfaces. With it off the volume pass is drawn over the surfaces and washes the
+        # mask out (and nested regions such as tumours inside the liver turn to fog).
+        # Peel count and occlusion ratio barely change the frame time once a volume is
+        # involved, so 8 is kept as a safe depth for a few nested surfaces.
         self.renderer.SetMaximumNumberOfPeels(8);self.renderer.SetOcclusionRatio(.2)
         interactor=window.GetInteractor()
         interactor.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
         interactor.SetDesiredUpdateRate(30);interactor.SetStillUpdateRate(0.5)
-        # DesiredUpdateRate only throttles LOD-aware actors (vtkLODActor), which these
-        # plain vtkActor meshes are not, and depth peeling still re-peels every frame
-        # regardless of update rate. Drop peeling to 0 while the camera is actively
-        # being dragged (StartInteractionEvent) and restore it once it stops
-        # (EndInteractionEvent); this is what actually keeps rotation smooth with both
-        # the volume and several semi-transparent mask surfaces visible.
-        interactor.AddObserver('StartInteractionEvent', self._interaction_started)
-        interactor.AddObserver('EndInteractionEvent', self._interaction_ended)
+        # The desired update rate makes the volume mapper coarsen its sampling during a drag
+        # (the plain vtkActor meshes are not LOD-aware, so it does not affect them).
         layout.addWidget(self.vtk,1)
         self.marker=None
         # Settings live in the existing inspector, leaving the image area free of headers.
@@ -123,20 +116,6 @@ class SurfaceViewer(QWidget):
 
     def render(self):
         if self.initialized:self.vtk.GetRenderWindow().Render()
-
-    def _interaction_started(self,*args):
-        # Hide the translucent image volume while the camera moves. Without depth
-        # peeling the volume pass is drawn over the mask surfaces and washes them out;
-        # keeping peeling on for the (cheap) surfaces alone keeps nested regions correct.
-        self.restore_timer.stop()
-        if self.anatomy_actor is not None:self.anatomy_actor.SetVisibility(False)
-
-    def _interaction_ended(self,*args):
-        self.restore_timer.start()
-
-    def restore_anatomy(self):
-        if self.anatomy_actor is not None:self.anatomy_actor.SetVisibility(self.show_anatomy.isChecked())
-        self.render()
 
     def set_anatomy(self,volume,channel=0,modality=None):
         key=(id(volume),channel,modality) if volume is not None else None
@@ -220,6 +199,5 @@ class SurfaceViewer(QWidget):
 
     def is_busy(self):return self.worker is not None and self.worker.isRunning()
     def shutdown(self):
-        self.restore_timer.stop()
         if self.marker:self.marker.SetEnabled(False)
         self.vtk.Finalize()

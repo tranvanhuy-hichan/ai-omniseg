@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pytest
 
@@ -73,3 +75,23 @@ def test_label_opacities_come_from_task_json_and_default_to_opaque():
     assert registry.label_opacities(brain)[1] < 1 and 2 not in registry.label_opacities(brain)
     assert registry.label_opacities({'labels': {'background': 0, 'a': 1}, 'label_display': {'1': {'opacity': 7}}}) == {1: 1.0}
     assert registry.label_opacities({'labels': {'background': 0, 'a': 1}}) == {}
+
+
+def test_dragging_the_camera_keeps_depth_peeling_and_the_image_volume(tmp_path):
+    """Turning peeling off (or hiding the volume) during a drag washes the mask out; guard against it."""
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    pytest.importorskip('PySide6')
+    import nibabel as nib
+    from PySide6.QtWidgets import QApplication
+    from omniseg.core.volume import Volume
+    from omniseg.view3d import SurfaceViewer
+    QApplication.instance() or QApplication([])
+    data = np.full((8, 8, 8), -1000., dtype=np.float32); data[2:6, 2:6, 2:6] = 600.
+    path = tmp_path / 'ct.nii.gz'; nib.save(nib.Nifti1Image(data, np.eye(4)), path)
+    viewer = SurfaceViewer(registry.label_entries(registry.get_task('liver_tumour_ct')))
+    viewer.set_anatomy(Volume.load(path), 0, 'CT')
+    interactor = viewer.vtk.GetRenderWindow().GetInteractor()
+    for event in ('StartInteractionEvent', 'EndInteractionEvent'):
+        interactor.InvokeEvent(event)
+        assert viewer.renderer.GetUseDepthPeeling() and viewer.renderer.GetUseDepthPeelingForVolumes()
+        assert viewer.anatomy_actor.GetVisibility()

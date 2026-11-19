@@ -93,5 +93,5 @@ the desktop entry point defaults to `QT_QPA_PLATFORM=xcb` unless an explicit pla
 
 3D controls are in the right inspector; no separate 3D title/source toolbar consumes image space.
 
-While the camera is being dragged or zoomed the translucent image volume is hidden and only the mask surfaces are drawn; it returns about 0.25 s after the camera stops. This keeps the mask readable and rotation smooth. The image is a faint context layer (default opacity 12%): MRI is lightly smoothed, and CT uses a fixed Hounsfield window that shows bone and a faint skin shell while leaving soft tissue and air transparent.
+The image volume stays visible while the camera is dragged or zoomed, and the mask surfaces stay readable: depth peeling is kept on at all times so the translucent volume and the translucent mask surfaces are interleaved correctly. The image is a faint context layer (default opacity 12%): MRI is lightly smoothed, and CT uses a fixed Hounsfield window that shows bone and a faint skin shell while leaving soft tissue and air transparent. Peeling costs frame time on integrated GPUs (roughly 15–30 fps on an Intel UHD with a 512×512×129 CT); the "Hiện toàn bộ ảnh" switch turns the volume off for a much faster, mask-only view.
 The selected MRI channel is used for the volume. Raw images remain unchanged.
