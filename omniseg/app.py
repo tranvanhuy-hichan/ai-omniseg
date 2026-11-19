@@ -380,7 +380,7 @@ class Workspace(QMainWindow):
         controls.addWidget(self.channel); controls.addSpacing(6)
         controls.addWidget(label('Bố cục'))
         self.layout_choice = QComboBox()
-        for title, axis in [('Ba mặt phẳng', None), ('Axial · Toàn vùng xem', 2), ('Coronal · Toàn vùng xem', 1), ('Sagittal · Toàn vùng xem', 0), ('3D · Não và mask', '3d')]:
+        for title, axis in [('Ba mặt phẳng', None), ('Axial · Toàn vùng xem', 2), ('Coronal · Toàn vùng xem', 1), ('Sagittal · Toàn vùng xem', 0), ('3D · Ảnh và mask', '3d')]:
             self.layout_choice.addItem(title, axis)
         self.layout_choice.currentIndexChanged.connect(lambda index: self.set_focus(self.layout_choice.itemData(index)))
         controls.addWidget(self.layout_choice); controls.addStretch()

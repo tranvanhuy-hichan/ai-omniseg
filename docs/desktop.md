@@ -8,20 +8,24 @@ dropdown in the header lists every trained model found under `tasks/` (see
 ```bash
 make setup-desktop
 make desktop
-# Or open a specific volume:
-make desktop EXTRA="--file data/source/Task01_BrainTumour/imagesTr/BRATS_001.nii.gz"
+# Or open a specific volume (and optionally a mask, or start in the 3D view):
+make desktop EXTRA="--file path/to/case.nii.gz --view 3d"
 ```
 
 The Makefile uses `~/venvs/ai` by default. Override with `VENV=/path/to/venv`.
 
 ## Available
 
-- Case list from the downloaded MSD `imagesTr` folder, or a folder you select.
+- Case list from `data/test_sets/<model>/images` when that folder exists, or a folder you select.
 - 3D and 4D NIfTI loading in a worker thread.
 - Axial, coronal and sagittal voxel planes, slice sliders and mouse-wheel scrolling.
 - Channel selection (per the selected model's input order), percentile-based window reset, manual window/level.
 - Physical pixel aspect ratio, canonical RAS reorientation and neurological display convention.
-- Separate mask loading with strict shape/affine and label 0–3 checks.
+- Separate mask loading with strict shape/affine checks and a check against the selected model's label ids.
+- In-app segmentation: the **Chạy phân đoạn** button runs `nnUNetv2_predict` for the selected model (fold 0,
+  `checkpoint_final.pth`) and shows the result as an AI prediction. It is locked, with the reason shown, when the
+  model's checkpoint is missing or the open image has the wrong number of channels.
+- A 3D view of the mask surfaces over a faint rendering of the image (a bone preset for CT).
 - Colored mask overlay, opacity control, voxel counts and physical volumes when spatial units are known.
 
 Open an image first (folder icon next to the search box, or **Ctrl+O**). To see ground truth, use **Nạp mask** and select the identically named file in `labelsTr`.
@@ -34,8 +38,8 @@ planes, not re-sliced into exact anatomical planes; orientation annotations are 
 Geometry checks do not prove that a mask belongs to the same patient or that anatomical registration is correct.
 The selected MSD channel names apply only to that known four-channel order; generic NIfTI does not guarantee it.
 
-Model inference, DICOM support, crosshair navigation and packaging are not yet implemented.
-The segmentation button is disabled until inference integration is implemented; training a model alone does not enable it.
+DICOM support and crosshair navigation are not implemented. Checkpoints are not distributed with the project:
+place them under `artifacts/nnUNet_results/` (see the README) before the segmentation button can run a model.
 
 The CPU-only CI tests cover volume processing without importing Qt. Desktop GUI smoke checks require PySide6;
 `QT_QPA_PLATFORM=offscreen` can be used on machines without a display.
@@ -45,8 +49,9 @@ The CPU-only CI tests cover volume processing without importing Qt. Desktop GUI 
 PySide6/Qt has its own licensing terms; consult the [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html)
 when distributing a packaged application. It is not relicensed by this project's AGPL license.
 
-On Linux, the app uses X11/XWayland for native VTK and its own Fusion theme and defaults to the generic Qt platform theme,
-avoiding optional GTK/GSettings theme-plugin incompatibilities. An explicitly set
+On Linux, the app uses X11/XWayland for native VTK and its own Fusion theme. It never loads the GTK theme plugin
+(avoiding optional GTK/GSettings incompatibilities); when an xdg-desktop-portal service is running it uses the portal
+theme so file dialogs are the system's own, otherwise the generic Qt theme. An explicitly set
 `QT_QPA_PLATFORMTHEME` is preserved.
 
 ## Bố cục và phóng lớn mặt phẳng

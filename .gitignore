@@ -12,3 +12,7 @@ artifacts/
 *.pth
 *.safetensors
 configs/*.local.json
+
+# PyInstaller output (make build-desktop)
+/dist/
+/build/

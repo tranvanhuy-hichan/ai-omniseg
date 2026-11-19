@@ -6,134 +6,160 @@
 [![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
 
-**OmniSeg** is an open-source research project for medical image segmentation using **nnU-Net v2 as a dependency**.
-The goal is a reproducible path from registered medical image volumes to segmentation masks, evaluation and 3D
-visualization. It is built around multiple independent **tasks** (one per body region/modality, e.g. brain tumour
-MRI today, lung or heart CT later) rather than a single hardcoded model — see
-[project structure](docs/project-structure.md) and [tasks/README.md](tasks/README.md) for how a new model plugs in.
-This is an independent application scaffold, not a fork of nnU-Net or a clinical diagnostic system.
+**OmniSeg** is an open-source desktop viewer and training scaffold for **multi-model medical image
+segmentation** on NIfTI volumes, built on **nnU-Net v2 as a dependency**. It currently ships two trained
+tasks, **brain tumour (MRI)** and **liver tumour (CT)**, selectable from a model dropdown. Each task is a folder
+under [`tasks/`](tasks/README.md), so a new body region or modality is added without changing the app.
+This is research software, not a clinical diagnostic system, and not a fork of nnU-Net.
 
-![OmniSeg desktop viewer showing an AI-predicted tumor mask](docs/images/desktop-viewer-segmentation.png)
+![OmniSeg segmenting a brain tumour case on MRI](docs/images/omniseg-brain-segmentation.png)
 
-## Current scope
+*Brain Tumour (MRI): case `BRATS_047` from the fold-0 validation split. The three tumour regions were
+predicted inside the app by the trained checkpoint (about 20 s on a laptop RTX 3050).*
 
-| Available | Planned |
+![OmniSeg segmenting a liver case on CT](docs/images/omniseg-liver-segmentation.png)
+
+*Liver Tumour (CT): case `liver_77` from the fold-0 validation split. Liver and lesion were predicted inside the
+app (about 56 s on the same GPU). The predicted lesion is small (4.5 mL); this image shows the interface and is not
+evidence of accuracy.*
+
+| Brain, 3D | Liver, 3D |
 |---|---|
-| Multi-channel NIfTI dataset importer | Evaluation on a named real dataset |
-| Geometry, label and duplicate-ID checks | Patient-grouped custom splits for longitudinal scans |
-| Plan/preprocess, train and predict wrappers | Mask-to-mesh export and physical volume measurements |
-| Native MRI slice/mask viewer and synthetic-data tests | 3D viewer and inference API |
+| ![3D view of the brain tumour surfaces over the MRI volume](docs/images/omniseg-3d-brain.png) | ![3D view of the liver surface over the CT bone preset](docs/images/omniseg-3d-liver.png) |
 
-No patient data, pretrained checkpoints or training results are included. A native slice viewer is available; MRI volume rendering and 3D mask surfaces are available; AI inference remains planned.
+*3D view: mask surfaces over a faint rendering of the image. In the liver image the predicted lesion lies inside the
+semi-transparent liver surface and is hidden from this angle.*
 
-```text
-Registered MRI volumes + masks
-              ↓
-Validate and import → nnU-Net planning → fold training → predicted masks
-                                                         ↓
-                                           evaluation / 3D viewer (planned)
-```
+![The model dropdown listing both tasks](docs/images/omniseg-model-picker.png)
 
-## Quick start
+## Models
 
-Python 3.11 is the tested target; Bash is required for the pipeline wrappers (Linux/macOS or WSL).
+Every number below was read from the saved `plans.json`, `dataset.json`, the checkpoints, the training logs and
+the installed nnU-Net 2.8.1 source, not from memory.
+
+| | **Brain Tumour (MRI)** | **Liver Tumour (CT)** |
+|---|---|---|
+| Task id | `brain_tumour_mri` | `liver_tumour_ct` |
+| Training data | MSD Task01_BrainTumour, release 2.0 (484 labelled cases) | MSD Task03_Liver, release 1.0 (131 labelled cases) |
+| Input channels | 4, in this order: FLAIR, T1w, t1gd, T2w | 1: CT |
+| Output classes | 4: background, edema, non-enhancing tumor, enhancing tumour | 3: background, liver, cancer |
+| nnU-Net dataset / configuration | 501 / `2d` | 502 / `3d_lowres` |
+| Network | `PlainConvUNet`, 6 stages | `PlainConvUNet`, 6 stages |
+| Features per stage | 32, 64, 128, 256, 512, 512 | 32, 64, 128, 256, 320, 320 |
+| Convolutions | 3×3, strides 1,2,2,2,2,2, two per stage | 3×3×3, strides 1,2,2,2,2,2, two per stage |
+| Normalisation / activation | InstanceNorm (affine), LeakyReLU, no dropout | InstanceNorm (affine), LeakyReLU, no dropout |
+| Parameters | 58,370,292 | 88,621,199 |
+| Patch size / batch size | 192×160 / 105 | 128×128×128 / 2 |
+| Target spacing | 1.0 × 1.0 mm in plane | 2.50 mm along the slice axis, 1.92 × 1.92 mm in plane (median original spacing 1.0 × 0.77 × 0.77 mm) |
+| Intensity normalisation | z-score per channel, computed inside the non-zero (brain) mask | CT scheme: clip to −15…197 HU (0.5th–99.5th percentile of foreground), subtract mean 99.48, divide by std 37.14 |
+| Trainer | `nnUNetTrainer_100epochs` | `nnUNetTrainer_100epochs` |
+| Schedule | 100 epochs × 250 training and 50 validation iterations | 100 epochs × 250 training and 50 validation iterations |
+| Loss | Dice + cross-entropy, batch Dice on | Dice + cross-entropy, batch Dice off |
+| Optimiser | SGD, momentum 0.99 (Nesterov), weight decay 3e-5 | same |
+| Learning rate | 0.01, poly decay (exponent 0.9); 0.00016 in the last epoch | same |
+| Fold trained | fold 0 of 5 case-level folds (seed 12345): 387 train / 97 validation | fold 0 of 5 case-level folds (seed 12345): 104 train / 27 validation |
+| Epoch time | median about 195 s, about 5.0 h of epochs in total; accelerator not recorded | about 224 s, 6.2 h in total, Tesla T4 (the trainer used one of the two visible GPUs) |
+| Final train / validation loss | −0.833 / −0.751 | −0.703 / −0.660 |
+| Final-epoch pseudo-Dice (fold-0 validation) | edema 0.83, non-enhancing 0.73, enhancing 0.87 | liver 0.96, cancer 0.77 |
+
+**Pseudo-Dice is not full-volume Dice.** It is the Dice that nnU-Net's trainer logs on sampled validation
+patches during training. No full-volume evaluation has been run for either model yet.
+
+**Shared training recipe** (nnU-Net defaults for this trainer). Deep supervision is on: the loss is applied to the
+decoder outputs at several resolutions, each weighted half as much as the one above it, and the lowest-resolution
+output gets zero weight. A third of each batch is oversampled to contain foreground. Augmentation is random
+rotation (±180° for the 2D patch, ±30° for the 3D patch) and scaling 0.7–1.4, both with probability 0.2, plus Gaussian
+noise, Gaussian blur, brightness, contrast, low-resolution simulation, gamma and mirroring.
+
+**How the app runs a model.** The Run button calls `nnUNetv2_predict` with fold 0 and `checkpoint_final.pth`
+(see `omniseg/core/inference.py` and the task's `task.json`), with nnU-Net's default inference settings:
+sliding window with a step of half a patch and Gaussian weighting, and mirroring test-time augmentation over every
+flip combination of the allowed axes (4 forward passes per window in 2D, 8 in 3D).
+
+- **Brain (2D):** the volume is segmented one slice at a time, each slice along the first axis of nnU-Net's array
+  (the NIfTI third axis), then the slices are stacked. A slice never sees its neighbours.
+- **Liver (3d_lowres):** the volume is resampled to the low-resolution target spacing, segmented in 128³ windows, and
+  the predicted probabilities are resampled back (linear interpolation) to the original grid before the final label
+  is taken.
+
+Measured on one laptop (RTX 3050 4 GB, nnU-Net 2.8.1), from clicking Run to the mask appearing: about 20 s for one
+brain case, and 47–80 s for the four liver cases tried (74–105 slices). These are single timings, not benchmarks.
+
+**Input requirements.** NIfTI (`.nii` or `.nii.gz`). Brain: a 4D file with the four channels in the order above (the
+app checks the channel count; it cannot check the order). Liver: a 3D CT volume. nnU-Net resamples to the target
+spacing itself; it does not reorient or register the image, so inputs should be in the same kind of orientation as
+the MSD data.
+
+**Not known or not measured.** Full-volume Dice, or any metric on data outside the training folds; behaviour on other
+scanners, protocols or patient populations; the other four folds and any ensemble; which GPU the brain training used;
+timings on other hardware. The 97 brain test cases are the fold-0 validation cases (none was in the fold-0 training
+set), so they are held out from training but were visible to training-time monitoring. The 20-case
+[3D-IRCADb-01](docs/dataset-liver.md) set is an external liver test set, but 5 of its cases have no tumour label
+and no score on it has been computed yet.
+
+## Quick start (desktop viewer)
+
+Python 3.11 is the tested target. Bash is needed for the pipeline wrappers (Linux/macOS or WSL).
 
 ```bash
 git clone https://github.com/tranvanhuy-hichan/brain-mri-segmentation.git
 cd brain-mri-segmentation
 uv venv --python 3.11 .venv
 source .venv/bin/activate
-uv pip install --torch-backend auto -r requirements.txt
-uv pip install -r requirements-dev.txt
+uv pip install --torch-backend auto -r requirements.txt -r requirements-desktop.txt
 python scripts/check_environment.py
+python -m omniseg          # or: make desktop
 ```
 
-Without `uv`, create a virtual environment and install the appropriate
-[PyTorch build](https://pytorch.org/get-started/locally/) first, then run
-`python -m pip install -r requirements.txt -r requirements-dev.txt`.
-The project pins nnU-Net 2.8.1; GPU dependencies depend on your platform and driver.
+Without `uv`, install the appropriate [PyTorch build](https://pytorch.org/get-started/locally/) first, then run
+`python -m pip install -r requirements.txt -r requirements-desktop.txt`. The project pins nnU-Net 2.8.1.
 
-### Makefile shortcuts
+1. Open an image with the folder icon next to the search box (a menu offers one image or a whole folder), or
+   press **Ctrl+O**.
+2. Pick the model in the **Mô hình** dropdown in the header.
+3. Press **Chạy phân đoạn** to segment, or load a mask with **Nạp mask**. The panel always says whether a mask is a
+   model prediction or a reference.
 
-`make` prints available commands. The default environment is `~/venvs/ai`; no activation
-or new environment is needed. Override it with `VENV=/path/to/venv`.
-`make setup` requires `uv` and installs the training dependencies into that environment.
-`make setup-dev` installs the development requirements and may change versions in a shared environment.
+**The trained checkpoints are not in this repository or in the release.** The Run button stays locked, with the
+reason shown, until the checkpoint for the selected model exists at
+`artifacts/nnUNet_results/<dataset>/nnUNetTrainer_100epochs__nnUNetPlans__<config>/fold_0/checkpoint_final.pth`
+(together with that folder's `plans.json` and `dataset.json`). You can still open images and load masks without it.
+To produce your own checkpoints, see [docs/kaggle-training.md](docs/kaggle-training.md) and the pipeline below.
+Viewer details: [docs/desktop.md](docs/desktop.md).
+
+Packaged desktop builds (attached to tagged releases, about 0.8 GB unpacked) are viewers: to run a model they also
+need nnU-Net installed separately (`nnUNetv2_predict` on `PATH`) and the `nnUNet_results` environment variable
+pointing at the folder that holds the checkpoints.
+
+## Train your own model
+
+`make` prints the available commands. The default environment is `~/venvs/ai`; override it with `VENV=/path/to/venv`.
 
 ```bash
-make doctor
-make check
-make init-config     # edit the local configs for your real dataset next
-make prepare
-make plan
+make doctor          # report nnU-Net / PyTorch / CUDA versions
+make check           # tests and shell syntax
+make import-msd      # import the MSD Task01 archive (see docs/dataset.md)
+make plan            # plan and preprocess
 make train           # full training: dataset 501, 2d, fold 0
-make predict
+make predict INPUT=data/inference OUTPUT=artifacts/predictions
 ```
 
-Use `DATASET=501 CONFIG=3d_fullres FOLD=0` to select another configuration.
-Use `make resume` to continue training, or `INPUT=... OUTPUT=...` for prediction paths.
-These targets require real prepared data and trained weights where applicable.
+Use `DATASET=502 CONFIG=3d_lowres FOLD=0` to select another task, and `make resume` to continue training. Custom
+datasets go through `scripts/prepare_dataset.py` (manifest examples in `configs/`): inputs must be 3D `.nii.gz`
+files with matching geometry within a case, labels are never remapped silently, and each case ID must be one
+independent patient (repeated scans need a custom grouped split). The first two models were trained on Kaggle
+in two stages, CPU preprocessing then a budgeted GPU run: see
+[docs/kaggle-training.md](docs/kaggle-training.md). Dataset notes: [brain](docs/dataset.md),
+[liver](docs/dataset-liver.md).
 
-### 1. Prepare a dataset
+## Adding a model
 
-Place your licensed dataset in `data/source/` (ignored by Git), then edit local copies of the examples:
-
-```bash
-cp configs/dataset.example.json configs/dataset.local.json
-cp configs/cases.example.json configs/cases.local.json
-source scripts/env.sh
-python scripts/prepare_dataset.py \
-  --config configs/dataset.local.json \
-  --manifest configs/cases.local.json
-```
-
-The example uses four channels in this order: **FLAIR, T1, T1ce, T2**. It expects a **binary mask**
-(background=0, tumor=1). Adapt the configuration to your actual label convention. BraTS label conventions
-vary by release; this importer deliberately does not merge or remap labels automatically.
-Paths in the manifest are relative to the manifest file, or absolute.
-
-All inputs must be 3D `.nii.gz` files with matching geometry within each case.
-Geometry checks do not perform registration or verify anatomical alignment.
-Existing destination datasets are never overwritten.
-
-Each case ID must represent an independent patient. Repeated scans from the same patient need a
-custom grouped split before training. Keep your independent test patients outside the training manifest.
-The default five-fold split requires at least five cases; that minimum is not a sufficient study size.
-
-### 2. Plan and train
-
-```bash
-scripts/pipeline.sh plan 501 2d
-scripts/pipeline.sh train 501 2d 0 --npz
-```
-
-This launches full training for fold 0, not a short smoke test. Start with 2D to check the workflow;
-3D memory requirements depend on the dataset and generated plan. A 4 GB GPU is not guaranteed to fit
-an unmodified 3D plan. One fold is not a full five-fold cross-validation result.
-
-To resume training, add `--c`. To use 3D, plan and train `3d_fullres` instead of `2d`.
-
-### 3. Predict with the trained fold
-
-```bash
-scripts/pipeline.sh predict 501 2d 0 data/inference artifacts/predictions
-```
-
-Inference inputs must use the same channel order and `_0000.nii.gz`, `_0001.nii.gz`, … naming.
-The wrapper explicitly selects the trained fold. It does not assume all five folds exist.
-
-## Project layout
-
-See [project-structure.md](docs/project-structure.md) for what each top-level folder
-(`omniseg/`, `tasks/`, `scripts/`, `kaggle/`, `configs/`, `tests/`, `docs/`) is for, and how to
-build the desktop app into a standalone executable.
-
-To store large files elsewhere, export `nnUNet_raw`, `nnUNet_preprocessed` and `nnUNet_results`
-before sourcing `scripts/env.sh`.
+Copy `tasks/liver_tumour_ct/` as a template and follow [tasks/README.md](tasks/README.md): a `task.json`, the
+dataset fingerprint and a short README. The app discovers the new task on its next start; no change to `omniseg/` is
+needed. [docs/project-structure.md](docs/project-structure.md) describes every top-level folder and how to build the
+standalone app (`make build-desktop`).
 
 ## Development
-
-Tests require only the lightweight development dependencies, not nnU-Net, CUDA or real MRI data:
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -141,56 +167,37 @@ python -m pytest -q
 bash -n scripts/env.sh scripts/pipeline.sh
 ```
 
-CI validates the importer and shell syntax. It does **not** train a model or establish medical accuracy.
-See [Contributing](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md),
-[Security](SECURITY.md), [Architecture](docs/architecture.md) and [Roadmap](docs/roadmap.md).
+Tests use synthetic data only (no nnU-Net, CUDA or patient data). CI runs the tests and shell syntax checks; it does
+not train a model or establish medical accuracy. See [Contributing](CONTRIBUTING.md),
+[Code of Conduct](CODE_OF_CONDUCT.md), [Security](SECURITY.md), [Architecture](docs/architecture.md) and
+[Roadmap](docs/roadmap.md).
 
-## Data and limitations
+## Limitations and safety
 
-Dataset access and redistribution are governed by the dataset provider's terms. No dataset is bundled.
-Do not publish patient identifiers, scans, local manifests or credentials in issues, commits or screenshots.
-Only de-identified, appropriately licensed synthetic/public examples should be shared.
-No clinical performance has been measured in this repository.
+- **Not a medical device.** Do not use any output to make or support a diagnosis or treatment decision. Predictions
+  are labelled as AI results in the app and have no clinical validation.
+- Each model is a single fold trained for 100 epochs, not the 1000-epoch nnU-Net default and not a five-fold ensemble.
+- Only pseudo-Dice from training is reported, and none of it is full-volume or external; see *Not known or not
+  measured* above.
+- Geometry checks do not verify that a mask belongs to the same patient or that images are registered.
+- Do not publish patient identifiers, scans, local manifests or credentials in issues, commits or screenshots.
 
-## License and attribution
+## Data, credits and license
 
-Original project code is licensed **AGPL-3.0-or-later**, following the author's Nestor Agent project.
-Dependencies and datasets retain their own licenses; nnU-Net is independently licensed Apache-2.0.
-See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
+Datasets are not bundled and keep their own terms.
 
-This project uses [nnU-Net](https://github.com/MIC-DKFZ/nnUNet). Please cite the upstream method
-when publishing work based on it:
+- **Medical Segmentation Decathlon**, Task01_BrainTumour (BraTS 2016–2017 data) and Task03_Liver:
+  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Antonelli et al., *The Medical Segmentation
+  Decathlon*, Nature Communications (2022), [doi:10.1038/s41467-022-30695-9](https://doi.org/10.1038/s41467-022-30695-9).
+  The screenshots above contain slices of MSD cases `BRATS_047` and `liver_77` with model-predicted overlays and are
+  shared under the same license with this attribution.
+- **3D-IRCADb-01** (external liver test set): [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/),
+  non-commercial, not redistributed here. Soler et al., *3D image reconstruction for comparison of algorithm
+  database: a patient specific anatomical and medical image database*, IRCAD, Strasbourg, France, Tech. Rep. (2010).
+
+Original project code is licensed **AGPL-3.0-or-later**. Dependencies keep their own licenses (nnU-Net is Apache-2.0);
+see [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). Please cite nnU-Net when publishing work
+based on it:
 
 > Isensee et al. nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation.
 > Nature Methods (2021). [doi:10.1038/s41592-020-01008-z](https://doi.org/10.1038/s41592-020-01008-z).
-
-Upstream references: [dataset format](https://github.com/MIC-DKFZ/nnUNet/blob/v2.8.1/documentation/dataset_format.md)
-and [training/inference](https://github.com/MIC-DKFZ/nnUNet/blob/v2.8.1/documentation/how_to_use_nnunet.md).
-
-## Selected dataset / Dataset đã chọn
-
-The initial baseline uses **MSD Task01 BrainTumour (release 2.0)**, with 4 MRI channels and
-labels 0=background, 1=edema, 2=non-enhancing tumor, 3=enhancing tumor.
-See [dataset decision, download and evaluation plan](docs/dataset.md).
-Use `make import-msd` for its 4D files; the earlier binary manifest example is for custom data only.
-
-## Native desktop viewer
-
-```bash
-make setup-desktop
-make desktop
-```
-
-View real NIfTI slices, MRI channels and separately loaded masks, or run the
-current pilot checkpoint directly from the viewer.
-
-See [desktop usage and limits](docs/desktop.md). VTK MRI volume rendering and 3D mask surfaces are available.
-The **Mô hình** dropdown selects which trained task to run; the "Run segmentation" button invokes that
-task's checkpoint via `nnUNetv2_predict` (currently only `brain_tumour_mri`, fold 0, trained the full
-100/100 epochs, not yet evaluated on held-out data). Its output is labeled as an AI result, never as a
-reference label.
-
-## Kaggle training
-
-CPU preprocessing and a budgeted 100-epoch 2D pilot are prepared in `kaggle/`.
-See [Kaggle stages, quota, checkpoints and commands](docs/kaggle-training.md).

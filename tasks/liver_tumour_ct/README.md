@@ -14,9 +14,10 @@ Source: Medical Segmentation Decathlon, Task03_Liver, release `1.0 04/05/2018`.
 131 labeled training cases, 70 unlabeled test cases, single-channel CT, two
 non-background labels (`liver`, `cancer`). License CC-BY-SA 4.0.
 
-No checkpoint has been trained for this task yet — `tasks/liver_tumour_ct/`
-is a scaffold so `omniseg/registry.py` and the Kaggle pipeline can target it
-once training (see [docs/kaggle-training.md](../../docs/kaggle-training.md))
-produces `artifacts/nnUNet_results/Dataset502_Liver/.../fold_0/checkpoint_final.pth`.
-Until that checkpoint exists, selecting this task in the app's model dropdown
-will fail inference with a missing-checkpoint error, not a silent wrong answer.
+Training: nnU-Net `3d_lowres`, fold 0 of 5 (104 train / 27 validation cases), `nnUNetTrainer_100epochs`,
+100/100 epochs on a Kaggle Tesla T4 (about 6.2 hours). The checkpoint itself is not in the repository: place
+`checkpoint_final.pth` (with `plans.json` and `dataset.json`) under
+`artifacts/nnUNet_results/Dataset502_Liver/nnUNetTrainer_100epochs__nnUNetPlans__3d_lowres/fold_0/` to enable
+the Run button. Without it the app keeps the button locked and shows why, instead of running and failing.
+The only metric so far is training-time pseudo-Dice on fold-0 validation patches (liver 0.96, cancer 0.77 at the
+last epoch), which is not full-volume Dice. See the README's *Models* section for the full configuration.

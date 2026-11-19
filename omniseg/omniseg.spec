@@ -9,7 +9,10 @@ a = Analysis(
     [str(root / 'omniseg' / 'entry_point.py')],
     pathex=[str(root)],
     binaries=[],
-    datas=[(str(root / 'omniseg' / 'assets'), 'omniseg/assets')],
+    datas=[
+        (str(root / 'omniseg' / 'assets'), 'omniseg/assets'),
+        (str(root / 'tasks'), 'tasks'),
+    ],
     hiddenimports=[
         'vtkmodules.all',
         'vtkmodules.util.numpy_support',
