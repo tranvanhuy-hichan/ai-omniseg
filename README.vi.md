@@ -51,7 +51,7 @@ cài, không viết theo trí nhớ.
 | Dữ liệu huấn luyện | MSD Task01_BrainTumour, bản 2.0 (484 ca có nhãn) | MSD Task03_Liver, bản 1.0 (131 ca có nhãn) |
 | Kênh đầu vào | 4, theo thứ tự: FLAIR, T1w, t1gd, T2w | 1: CT |
 | Lớp đầu ra | 4: background, edema, non-enhancing tumor, enhancing tumour | 3: background, liver, cancer |
-| Dataset / cấu hình nnU-Net | 501 / `2d` | 502 / `3d_lowres` |
+| Dataset / cấu hình nnU-Net | 501 / `3d_fullres` (ResEnc-M) | 502 / `3d_lowres` |
 | Mạng | `PlainConvUNet`, 6 stage | `PlainConvUNet`, 6 stage |
 | Số feature mỗi stage | 32, 64, 128, 256, 512, 512 | 32, 64, 128, 256, 320, 320 |
 | Tích chập | 3×3, stride 1,2,2,2,2,2, hai lớp mỗi stage | 3×3×3, stride 1,2,2,2,2,2, hai lớp mỗi stage |

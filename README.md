@@ -51,7 +51,7 @@ the installed nnU-Net 2.8.1 source, not from memory.
 | Training data | MSD Task01_BrainTumour, release 2.0 (484 labelled cases) | MSD Task03_Liver, release 1.0 (131 labelled cases) |
 | Input channels | 4, in this order: FLAIR, T1w, t1gd, T2w | 1: CT |
 | Output classes | 4: background, edema, non-enhancing tumor, enhancing tumour | 3: background, liver, cancer |
-| nnU-Net dataset / configuration | 501 / `2d` | 502 / `3d_lowres` |
+| nnU-Net dataset / configuration | 501 / `3d_fullres` (ResEnc-M) | 502 / `3d_lowres` |
 | Network | `PlainConvUNet`, 6 stages | `PlainConvUNet`, 6 stages |
 | Features per stage | 32, 64, 128, 256, 512, 512 | 32, 64, 128, 256, 320, 320 |
 | Convolutions | 3×3, strides 1,2,2,2,2,2, two per stage | 3×3×3, strides 1,2,2,2,2,2, two per stage |

@@ -10,5 +10,5 @@ only covers what is specific to this task's configuration.
 - `dataset.json` — the nnU-Net dataset fingerprint used when this dataset was
   imported (channel names, labels, file ending).
 
-Pilot checkpoint: fold 0, trained the full 100/100 epochs. Not validated enough
+Checkpoint: nnU-Net `3d_fullres` with the ResEnc-M plans (`nnUNetTrainer`, 150 epochs), fold 0. Full-volume Dice on 97 held-out cases: edema 0.794, non-enhancing 0.624, enhancing 0.763 (previous 2d model: 0.787 / 0.606 / 0.757). Not validated enough
 to use for diagnosis — see the in-app disclaimer.
